@@ -29,8 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const response = await me();
-      setUser(response.data);
+      setUser(await me());
     } catch (error) {
       console.error('Erro ao restaurar sessão:', error);
       await removeToken();
@@ -45,8 +44,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [restoreSession]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const response = await loginRequest(email, password);
-    setUser(response.user);
+    await loginRequest(email, password);
+
+    const token = await getToken();
+
+    if (!token) {
+      throw new Error('Token não foi salvo após o login.');
+    }
+
+    setUser(await me());
   }, []);
 
   const signOut = useCallback(async () => {

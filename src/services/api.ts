@@ -12,6 +12,32 @@ type ApiOptions = RequestInit & {
     authenticated?: boolean;
 };
 
+export type ApiValidationErrors = Record<string, string[]>;
+
+export class ApiError extends Error {
+    status: number;
+    errors?: ApiValidationErrors;
+    body: unknown;
+
+    constructor({
+        message,
+        status,
+        errors,
+        body,
+    }: {
+        message: string;
+        status: number;
+        errors?: ApiValidationErrors;
+        body: unknown;
+    }) {
+        super(message);
+        this.name = 'ApiError';
+        this.status = status;
+        this.errors = errors;
+        this.body = body;
+    }
+}
+
 export async function api<T>(
     path: string,
     options: ApiOptions = {},
@@ -43,10 +69,19 @@ export async function api<T>(
     const body = await response.json().catch(() => null);
 
     if (!response.ok) {
-        throw new Error(
-            body?.message ??
+        const apiBody = body as {
+            message?: string;
+            errors?: ApiValidationErrors;
+        } | null;
+
+        throw new ApiError({
+            message:
+                apiBody?.message ??
                 `Erro na API (${response.status})`,
-        );
+            status: response.status,
+            errors: apiBody?.errors,
+            body,
+        });
     }
 
     return body as T;

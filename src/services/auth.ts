@@ -7,8 +7,54 @@ import {
 import type {
     LoginApiResponse,
     LoginResponse,
+    MeApiResponse,
     User,
 } from '@/types/auth';
+
+type LoginPayload = {
+    token?: string;
+    access_token?: string;
+    plain_text_token?: string;
+    plainTextToken?: string;
+    accessToken?: string;
+    token_type?: string;
+    user?: User;
+};
+
+function normalizeLoginResponse(response: LoginApiResponse): LoginResponse {
+    const data: LoginPayload = 'data' in response
+        ? response.data
+        : response;
+    const root = response as LoginPayload;
+
+    const token =
+        data.token ??
+        data.access_token ??
+        data.plain_text_token ??
+        data.plainTextToken ??
+        data.accessToken ??
+        root.token ??
+        root.access_token ??
+        root.plain_text_token ??
+        root.plainTextToken ??
+        root.accessToken;
+
+    const user = data.user ?? root.user;
+
+    if (!token) {
+        throw new Error('Resposta de login sem token.');
+    }
+
+    return {
+        token,
+        token_type: data.token_type ?? root.token_type ?? 'Bearer',
+        user,
+    };
+}
+
+function normalizeMeResponse(response: MeApiResponse): User {
+    return 'data' in response ? response.data : response;
+}
 
 export async function login(
     email: string,
@@ -27,9 +73,7 @@ export async function login(
         },
     );
 
-    const loginResponse = 'data' in response
-        ? response.data
-        : response;
+    const loginResponse = normalizeLoginResponse(response);
 
     await saveToken(loginResponse.token);
 
@@ -37,7 +81,9 @@ export async function login(
 }
 
 export async function me() {
-    return api<{ data: User }>('/me');
+    const response = await api<MeApiResponse>('/me');
+
+    return normalizeMeResponse(response);
 }
 
 export async function logout() {

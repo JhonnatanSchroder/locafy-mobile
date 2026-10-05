@@ -1,474 +1,155 @@
+import { type Href, router, useFocusEffect } from 'expo-router';
+import { Plus, Search } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
-import {
-    ActivityIndicator,
-    FlatList,
-    Pressable,
-    RefreshControl,
-    Text,
-    TextInput,
-    View,
-} from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { Search } from 'lucide-react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getContracts } from '@/services/contracts';
+import { getClients } from '@/services/clients';
+import type { Client } from '@/types/client';
 
-import type {
-    Contract,
-    ContractStatus,
-} from '@/types/contract';
-
-type Filter =
-    | 'ALL'
-    | 'ACTIVE'
-    | 'RETURNED'
-    | 'FINALIZED'
-    | 'CANCELLED';
-
-const filters: {
-    label: string;
-    value: Filter;
-}[] = [
-    {
-        label: 'Todos',
-        value: 'ALL',
-    },
-    {
-        label: 'Ativos',
-        value: 'ACTIVE',
-    },
-    {
-        label: 'Devolvidos',
-        value: 'RETURNED',
-    },
-    {
-        label: 'Finalizados',
-        value: 'FINALIZED',
-    },
-    {
-        label: 'Cancelados',
-        value: 'CANCELLED',
-    },
-];
-
-function formatCurrency(value: string | null | undefined) {
-    if (value === null || value === undefined) {
-        return '—';
-    }
-
-    const number = Number(value);
-
-    if (Number.isNaN(number)) {
-        return '—';
-    }
-
-    return new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL',
-    }).format(number);
-}
-
-function formatDate(value: string | null | undefined) {
-    if (!value) {
-        return '—';
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return '—';
-    }
-
-    return date.toLocaleDateString('pt-BR');
-}
-
-function getStatusStyle(status: ContractStatus) {
-    switch (status) {
-        case 'ACTIVE':
-            return {
-                label: 'Ativo',
-                container: 'bg-emerald-500/10',
-                text: 'text-emerald-400',
-            };
-
-        case 'RETURNED':
-            return {
-                label: 'Devolvido',
-                container: 'bg-blue-500/10',
-                text: 'text-blue-400',
-            };
-
-        case 'FINALIZED':
-            return {
-                label: 'Finalizado',
-                container: 'bg-slate-500/10',
-                text: 'text-slate-300',
-            };
-
-        case 'CANCELLED':
-            return {
-                label: 'Cancelado',
-                container: 'bg-red-500/10',
-                text: 'text-red-400',
-            };
-
-        default:
-            return {
-                label: status,
-                container: 'bg-slate-500/10',
-                text: 'text-slate-300',
-            };
-    }
-}
-
-function ContractCard({
-    contract,
-    onPress,
-}: {
-    contract: Contract;
-    onPress: () => void;
-}) {
-    const status = getStatusStyle(contract.status);
-
-    const currentItems = contract.items.filter(
-        (item) =>
-            item.current_quantity !== null &&
-            item.current_quantity !== undefined &&
-            item.current_quantity > 0,
-    );
-
-    return (
-        <Pressable
-            onPress={onPress}
-            className="mb-3 rounded-2xl border border-slate-800 bg-slate-900 p-4 active:opacity-80"
-        >
-            <View className="mb-3 flex-row items-start justify-between gap-3">
-                <View className="flex-1">
-                    <Text className="text-lg font-bold text-slate-50">
-                        Contrato #{contract.number}
-                    </Text>
-
-                    <Text
-                        className="mt-1 text-sm text-slate-400"
-                        numberOfLines={1}
-                    >
-                        {contract.client?.name ?? 'Cliente não informado'}
-                    </Text>
-                </View>
-
-                <View
-                    className={`rounded-full px-3 py-1 ${status.container}`}
-                >
-                    <Text
-                        className={`text-xs font-semibold ${status.text}`}
-                    >
-                        {contract.status_label ?? status.label}
-                    </Text>
-                </View>
-            </View>
-
-            <View className="mb-4 rounded-xl bg-slate-950/60 p-3">
-                <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Itens atuais
-                </Text>
-
-                {currentItems.length > 0 ? (
-                    <View className="gap-1.5">
-                        {currentItems.map((item) => (
-                            <View
-                                key={item.id}
-                                className="flex-row items-center justify-between gap-3"
-                            >
-                                <Text
-                                    className="flex-1 text-sm text-slate-200"
-                                    numberOfLines={1}
-                                >
-                                    {item.product.name}
-                                </Text>
-
-                                <Text className="text-sm font-semibold text-slate-50">
-                                    {item.current_quantity}
-                                </Text>
-                            </View>
-                        ))}
-                    </View>
-                ) : (
-                    <Text className="text-sm text-slate-500">
-                        Nenhum item atualmente fora
-                    </Text>
-                )}
-            </View>
-
-            <View className="flex-row gap-3">
-                <View className="flex-1">
-                    <Text className="text-xs text-slate-500">
-                        Início
-                    </Text>
-
-                    <Text className="mt-1 text-sm font-medium text-slate-200">
-                        {formatDate(contract.started_at)}
-                    </Text>
-                </View>
-
-                <View className="flex-1">
-                    <Text className="text-xs text-slate-500">
-                        Próxima cobrança
-                    </Text>
-
-                    <Text className="mt-1 text-sm font-medium text-slate-200">
-                        {formatDate(contract.next_charge_date)}
-                    </Text>
-                </View>
-            </View>
-
-            <View className="mt-4 border-t border-slate-800 pt-3">
-                <Text className="text-xs text-slate-500">
-                    Valor acumulado
-                </Text>
-
-                {contract.calculation_complete ? (
-                    <Text className="mt-1 text-xl font-bold text-slate-50">
-                        {formatCurrency(contract.rental_total)}
-                    </Text>
-                ) : (
-                    <>
-                        <Text className="mt-1 text-lg font-semibold text-slate-400">
-                            —
-                        </Text>
-
-                        <Text className="mt-1 text-xs text-amber-400">
-                            Cálculo ainda não disponível para todos os itens
-                        </Text>
-                    </>
-                )}
-
-                {contract.calculated_until && (
-                    <Text className="mt-1 text-xs text-slate-500">
-                        Calculado até{' '}
-                        {formatDate(contract.calculated_until)}
-                    </Text>
-                )}
-            </View>
-        </Pressable>
-    );
-}
-
-export default function ContractsScreen() {
-    const router = useRouter();
-
-    const [contracts, setContracts] = useState<Contract[]>([]);
+export default function ClientsScreen() {
+    const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
     const [search, setSearch] = useState('');
-    const [filter, setFilter] = useState<Filter>('ALL');
 
-    const loadContracts = useCallback(
-        async (showLoading = true) => {
-            try {
-                if (showLoading) {
-                    setLoading(true);
-                }
-
-                setError(null);
-
-                const response = await getContracts();
-
-                setContracts(response.data);
-            } catch (err) {
-                console.error('Erro ao carregar contratos:', err);
-
-                setError(
-                    'Não foi possível carregar os contratos.',
-                );
-            } finally {
-                setLoading(false);
-                setRefreshing(false);
+    const loadClients = useCallback(async (showLoading = true) => {
+        try {
+            if (showLoading) {
+                setLoading(true);
             }
-        },
-        [],
-    );
+
+            setError(null);
+            setClients(await getClients());
+        } catch (error) {
+            console.error('Erro ao carregar clientes:', error);
+            setError('Não foi possível carregar os clientes.');
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, []);
 
     useFocusEffect(
         useCallback(() => {
-            loadContracts();
-        }, [loadContracts]),
+            loadClients();
+        }, [loadClients]),
     );
 
-    const handleRefresh = () => {
-        setRefreshing(true);
-        loadContracts(false);
-    };
+    const filteredClients = useMemo(() => {
+        const term = search.trim().toLowerCase();
 
-    const filteredContracts = useMemo(() => {
-        const normalizedSearch = search
-            .trim()
-            .toLowerCase();
+        if (!term) {
+            return clients;
+        }
 
-        return contracts.filter((contract) => {
-            const matchesStatus =
-                filter === 'ALL' ||
-                contract.status === filter;
-
-            if (!matchesStatus) {
-                return false;
-            }
-
-            if (!normalizedSearch) {
-                return true;
-            }
-
-            const contractNumber =
-                String(contract.number);
-
-            const clientName =
-                contract.client?.name
-                    ?.toLowerCase() ?? '';
-
+        return clients.filter((client) => {
             return (
-                contractNumber.includes(
-                    normalizedSearch,
-                ) ||
-                clientName.includes(
-                    normalizedSearch,
-                )
+                client.name.toLowerCase().includes(term) ||
+                (client.phone?.toLowerCase().includes(term) ?? false) ||
+                (client.document?.toLowerCase().includes(term) ?? false)
             );
         });
-    }, [contracts, filter, search]);
+    }, [clients, search]);
 
-    if (loading) {
-        return (
-            <View className="flex-1 items-center justify-center bg-slate-950">
-                <ActivityIndicator size="large" />
-
-                <Text className="mt-4 text-sm text-slate-400">
-                    Carregando contratos...
-                </Text>
-            </View>
-        );
+    function handleRefresh() {
+        setRefreshing(true);
+        loadClients(false);
     }
 
     return (
-        <View className="flex-1 bg-slate-950">
-            <View className="px-4 pb-3 pt-4">
-                <Text className="text-2xl font-bold text-slate-50">
-                    Contratos
-                </Text>
-
-                <Text className="mt-1 text-sm text-slate-400">
-                    Acompanhe as locações em andamento
-                </Text>
-            </View>
-
-            <View className="px-4">
-                <View className="flex-row items-center rounded-xl border border-slate-800 bg-slate-900 px-3">
-                    <Search
-                        size={18}
-                        color="#94A3B8"
-                    />
-
-                    <TextInput
-                        value={search}
-                        onChangeText={setSearch}
-                        placeholder="Buscar cliente ou contrato"
-                        placeholderTextColor="#64748B"
-                        className="ml-2 flex-1 py-3 text-slate-50"
-                    />
-                </View>
-            </View>
-
+        <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950">
             <FlatList
-                horizontal
-                data={filters}
-                keyExtractor={(item) => item.value}
-                showsHorizontalScrollIndicator={false}
-                contentContainerClassName="gap-2 px-4 py-4"
-                renderItem={({ item }) => {
-                    const active =
-                        filter === item.value;
+                data={filteredClients}
+                keyExtractor={(item) => String(item.id)}
+                showsVerticalScrollIndicator={false}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+                contentContainerClassName="px-5 pb-28 pt-4"
+                ItemSeparatorComponent={() => <View className="h-3" />}
+                ListHeaderComponent={
+                    <View>
+                        <View className="flex-row items-start justify-between gap-3">
+                            <View className="flex-1">
+                                <Text className="text-3xl font-bold text-slate-950 dark:text-white">Clientes</Text>
+                                <Text className="mt-1 text-base text-slate-500 dark:text-slate-400">Gerencie seus clientes</Text>
+                            </View>
 
-                    return (
-                        <Pressable
-                            onPress={() =>
-                                setFilter(item.value)
-                            }
-                            className={
-                                active
-                                    ? 'rounded-full bg-blue-600 px-4 py-2'
-                                    : 'rounded-full border border-slate-800 bg-slate-900 px-4 py-2'
-                            }
-                        >
-                            <Text
-                                className={
-                                    active
-                                        ? 'text-sm font-semibold text-white'
-                                        : 'text-sm font-medium text-slate-400'
-                                }
-                            >
-                                {item.label}
-                            </Text>
-                        </Pressable>
-                    );
-                }}
-            />
+                            <Pressable onPress={() => router.push('/clients/new' as Href)} className="active:opacity-80">
+                                <View className="h-11 w-11 items-center justify-center rounded-2xl bg-blue-600">
+                                    <Plus size={20} color="#FFFFFF" />
+                                </View>
+                            </Pressable>
+                        </View>
 
-            {error ? (
-                <View className="mx-4 mb-4 rounded-xl border border-red-500/20 bg-red-500/10 p-4">
-                    <Text className="font-medium text-red-400">
-                        {error}
-                    </Text>
+                        <View className="mt-5 flex-row items-center gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+                            <Search size={20} color="#64748B" />
+                            <TextInput
+                                value={search}
+                                onChangeText={setSearch}
+                                placeholder="Buscar por nome, telefone ou documento"
+                                placeholderTextColor="#94A3B8"
+                                className="flex-1 text-base font-medium text-slate-950 dark:text-white"
+                            />
+                        </View>
 
-                    <Pressable
-                        onPress={() =>
-                            loadContracts()
-                        }
-                        className="mt-3 self-start rounded-lg bg-red-500/10 px-3 py-2"
-                    >
-                        <Text className="text-sm font-semibold text-red-400">
-                            Tentar novamente
-                        </Text>
-                    </Pressable>
-                </View>
-            ) : null}
+                        {loading ? (
+                            <View className="items-center py-10">
+                                <ActivityIndicator />
+                                <Text className="mt-3 text-sm text-slate-500 dark:text-slate-400">Carregando clientes...</Text>
+                            </View>
+                        ) : null}
 
-            <FlatList
-                data={filteredContracts}
-                keyExtractor={(item) =>
-                    String(item.id)
-                }
-                renderItem={({ item }) => (
-                    <ContractCard
-                        contract={item}
-                        onPress={() =>
-                            router.push(
-                                `/contracts/${item.id}`,
-                            )
-                        }
-                    />
-                )}
-                contentContainerClassName="px-4 pb-28"
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={handleRefresh}
-                    />
-                }
-                ListEmptyComponent={
-                    <View className="items-center py-16">
-                        <Text className="text-base font-semibold text-slate-300">
-                            Nenhum contrato encontrado
-                        </Text>
+                        {!loading && error ? (
+                            <View className="my-5 rounded-3xl border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-950/40">
+                                <Text className="text-sm font-medium text-red-600 dark:text-red-300">{error}</Text>
+                                <Pressable onPress={() => loadClients()} className="mt-3 self-start">
+                                    <Text className="text-sm font-bold text-blue-600 dark:text-blue-400">Tentar novamente</Text>
+                                </Pressable>
+                            </View>
+                        ) : null}
 
-                        <Text className="mt-2 text-center text-sm text-slate-500">
-                            {search ||
-                            filter !== 'ALL'
-                                ? 'Tente alterar a busca ou os filtros.'
-                                : 'Os contratos cadastrados no Locafy aparecerão aqui.'}
-                        </Text>
+                        {!loading && !error ? (
+                            <View className="mb-3 mt-5 flex-row items-center justify-between">
+                                <Text className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Lista de clientes</Text>
+                                <Text className="text-xs text-slate-400 dark:text-slate-500">
+                                    {filteredClients.length} {filteredClients.length === 1 ? 'resultado' : 'resultados'}
+                                </Text>
+                            </View>
+                        ) : null}
                     </View>
                 }
+                renderItem={({ item }) =>
+                    !loading && !error ? (
+                        <ClientCard client={item} onPress={() => router.push({ pathname: '/clients/[id]', params: { id: item.id } } as Href)} />
+                    ) : null
+                }
+                ListEmptyComponent={
+                    !loading && !error ? (
+                        <View className="items-center rounded-3xl border border-dashed border-slate-200 bg-white px-6 py-10 dark:border-slate-800 dark:bg-slate-900">
+                            <Text className="text-base font-semibold text-slate-800 dark:text-slate-200">Nenhum cliente encontrado</Text>
+                            <Text className="mt-2 text-center text-sm leading-5 text-slate-500 dark:text-slate-400">
+                                {search ? 'Tente buscar por outro termo.' : 'Os clientes cadastrados aparecerão aqui.'}
+                            </Text>
+                        </View>
+                    ) : null
+                }
             />
-        </View>
+        </SafeAreaView>
+    );
+}
+
+function ClientCard({ client, onPress }: { client: Client; onPress: () => void }) {
+    return (
+        <Pressable onPress={onPress} className="active:opacity-80">
+            <View className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                <Text className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">{client.type_label}</Text>
+                <Text className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{client.name}</Text>
+                <View className="mt-3 gap-1">
+                    <Text className="text-sm text-slate-500 dark:text-slate-400">{client.phone ?? 'Telefone não informado'}</Text>
+                    {client.document ? <Text className="text-sm text-slate-500 dark:text-slate-400">{client.document}</Text> : null}
+                </View>
+            </View>
+        </Pressable>
     );
 }

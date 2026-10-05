@@ -1,7 +1,6 @@
-import { type Href, router } from 'expo-router';
 import { AlertCircle, CalendarClock } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChargeCard } from '@/components/charges/ChargeCard';
@@ -82,7 +81,12 @@ export default function ChargesScreen() {
                 key={charge.id}
                 charge={charge}
                 contract={contract}
-                onViewContract={() => router.push({ pathname: '/contracts/[id]', params: { id: charge.contractId } } as Href)}
+                onViewContract={() =>
+                  Alert.alert(
+                    'Cobrança mockada',
+                    'Esta fila ainda não está integrada ao backend de cobranças.',
+                  )
+                }
                 onReceive={() => setSelectedCharge(charge)}
               />
             );
