@@ -43,7 +43,15 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O Locafy acessa suas fotos para anexar imagens aos contratos.",
+          "cameraPermission": "O Locafy usa a câmera para fotografar contratos e itens locados.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

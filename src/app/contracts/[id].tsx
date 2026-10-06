@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Linking,
+  Modal,
   Pressable,
   ScrollView,
   Text,
@@ -25,7 +27,9 @@ import {
   Phone,
   RotateCcw,
   Truck,
+  Trash2,
   type LucideIcon,
+  X,
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -36,7 +40,9 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { getContract, finalizeContract } from '@/services/contracts';
 import { contractPresentation } from '@/utils/contractStatus';
 import { Button, ErrorText } from '@/components/ui/OperationalForm';
-import type { Contract } from '@/types/contract';
+import { ContractPhotoPicker } from '@/components/contracts/ContractPhotoPicker';
+import { deleteContractAttachment, uploadContractAttachment, type LocalContractPhoto } from '@/services/contractAttachments';
+import type { Contract, ContractAttachment } from '@/types/contract';
 import { formatDate } from '@/utils/formatDate';
 import { errorMessage } from '@/services/resources';
 
@@ -57,6 +63,10 @@ export default function ContractDetailScreen() {
   const [finalizing, setFinalizing] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [selectedAttachment, setSelectedAttachment] = useState<ContractAttachment | null>(null);
+  const [photosToUpload, setPhotosToUpload] = useState<LocalContractPhoto[]>([]);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoProgress, setPhotoProgress] = useState<string | null>(null);
 
   const [error, setError] =
     useState<string | null>(null);
@@ -134,6 +144,52 @@ export default function ContractDetailScreen() {
     (item) => (item.current_quantity ?? 0) > 0,
   );
   const presentation = contractPresentation(contract);
+  const contractId = contract.id;
+  const canUploadAttachments = contract.can_upload_attachments ?? !presentation.closed;
+  async function reloadContract() {
+    const response = await getContract(contractId);
+    setContract(response.data);
+  }
+  async function uploadSelectedPhotos(selectedPhotos = photosToUpload) {
+    if (!selectedPhotos.length || photoBusy) return;
+    setPhotoBusy(true); setOperationError(null); setFeedback(null);
+    const failed: LocalContractPhoto[] = [];
+    for (let index = 0; index < selectedPhotos.length; index += 1) {
+      setPhotoProgress(`Enviando fotos... ${index + 1} de ${selectedPhotos.length}`);
+      try {
+        await uploadContractAttachment(contractId, selectedPhotos[index]);
+      } catch {
+        failed.push(selectedPhotos[index]);
+      }
+    }
+    setPhotosToUpload(failed);
+    setPhotoProgress(null); setPhotoBusy(false);
+    await reloadContract();
+    if (failed.length) setOperationError(`${selectedPhotos.length - failed.length} de ${selectedPhotos.length} fotos enviadas.`);
+    else setFeedback('Fotos enviadas com sucesso.');
+  }
+  function updatePhotosToUpload(selectedPhotos: LocalContractPhoto[]) {
+    setPhotosToUpload(selectedPhotos);
+    if (selectedPhotos.length > photosToUpload.length) {
+      void uploadSelectedPhotos(selectedPhotos);
+    }
+  }
+  function confirmRemoveAttachment(attachment: ContractAttachment) {
+    Alert.alert('Remover esta foto?', undefined, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Remover', style: 'destructive', onPress: () => { void removeAttachment(attachment); } },
+    ]);
+  }
+  async function removeAttachment(attachment: ContractAttachment) {
+    setPhotoBusy(true); setOperationError(null); setFeedback(null);
+    try {
+      await deleteContractAttachment(contractId, attachment.id);
+      if (selectedAttachment?.id === attachment.id) setSelectedAttachment(null);
+      await reloadContract();
+      setFeedback('Foto removida.');
+    } catch (e) { setOperationError(errorMessage(e)); }
+    finally { setPhotoBusy(false); }
+  }
   async function finish() {
     if (!contract || finalizing) return;
     setFinalizing(true); setOperationError(null); setFeedback(null);
@@ -391,6 +447,31 @@ export default function ContractDetailScreen() {
           </View>
         </View>
 
+        <View className="mt-7">
+          <SectionHeader title="Fotos" />
+          <View className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            {canUploadAttachments ? <ContractPhotoPicker photos={photosToUpload} onChange={updatePhotosToUpload} disabled={photoBusy} helperText="As fotos selecionadas serão enviadas para este contrato." /> : null}
+            {photoProgress ? <Text className="mb-3 font-semibold text-blue-600">{photoProgress}</Text> : null}
+            {photosToUpload.length && !photoBusy ? <Button label="Tentar novamente" onPress={() => { void uploadSelectedPhotos(); }} /> : null}
+            <View className="flex-row flex-wrap gap-3">
+              {contract.attachments?.length ? contract.attachments.map(attachment => {
+                const url = attachment.view_url ?? attachment.url;
+                if (!url) return null;
+                const canDelete = canUploadAttachments && (attachment.can_delete ?? true);
+                return <View key={attachment.id} className="w-[30%] min-w-24">
+                  <Pressable onPress={() => setSelectedAttachment(attachment)} className="aspect-square overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
+                    <Image source={{ uri: url }} className="h-full w-full" resizeMode="cover" />
+                  </Pressable>
+                  <Text className="mt-2 text-xs font-semibold text-slate-700 dark:text-slate-200" numberOfLines={1}>{attachment.original_name}</Text>
+                  <Text className="mt-1 text-xs text-slate-500">{formatDateTime(attachment.created_at)}</Text>
+                  {uploadedByName(attachment) ? <Text className="mt-1 text-xs text-slate-500" numberOfLines={1}>{uploadedByName(attachment)}</Text> : null}
+                  {canDelete ? <Pressable onPress={() => confirmRemoveAttachment(attachment)} disabled={photoBusy} className="mt-2 flex-row items-center gap-1"><Trash2 size={14} color="#DC2626" /><Text className="text-xs font-bold text-red-600">Remover</Text></Pressable> : null}
+                </View>;
+              }) : <Text className="text-slate-500">Nenhuma foto enviada.</Text>}
+            </View>
+          </View>
+        </View>
+
         {/* Itens */}
         <View className="mt-7">
           <SectionHeader title="Itens atuais" />
@@ -498,8 +579,35 @@ export default function ContractDetailScreen() {
           )}
         </View>
       </View> : null}
+      <AttachmentViewer attachment={selectedAttachment} onClose={() => setSelectedAttachment(null)} onRemove={selectedAttachment && canUploadAttachments && (selectedAttachment.can_delete ?? true) ? () => confirmRemoveAttachment(selectedAttachment) : undefined} />
     </SafeAreaView>
   );
+}
+
+function AttachmentViewer({ attachment, onClose, onRemove }: { attachment: ContractAttachment | null; onClose: () => void; onRemove?: () => void }) {
+  const url = attachment?.view_url ?? attachment?.url;
+  return <Modal visible={!!attachment && !!url} transparent animationType="fade" onRequestClose={onClose}>
+    <View className="flex-1 bg-black/90 px-4 pb-8 pt-12">
+      <View className="mb-4 flex-row items-center justify-between">
+        <Pressable onPress={onClose} className="h-11 w-11 items-center justify-center rounded-full bg-white/10"><X size={22} color="#FFFFFF" /></Pressable>
+        {onRemove ? <Pressable onPress={onRemove} className="h-11 w-11 items-center justify-center rounded-full bg-white/10"><Trash2 size={20} color="#FFFFFF" /></Pressable> : null}
+      </View>
+      {url ? <Image source={{ uri: url }} className="flex-1 rounded-2xl" resizeMode="contain" /> : null}
+      {attachment ? <View className="mt-4"><Text className="font-bold text-white">{attachment.original_name}</Text><Text className="mt-1 text-slate-300">{formatDateTime(attachment.created_at)}{uploadedByName(attachment) ? ` · ${uploadedByName(attachment)}` : ''}</Text></View> : null}
+    </View>
+  </Modal>;
+}
+
+function uploadedByName(attachment: ContractAttachment) {
+  if (!attachment.uploaded_by) return null;
+  return typeof attachment.uploaded_by === 'string' ? attachment.uploaded_by : attachment.uploaded_by.name ?? null;
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return formatDate(value);
+  return `${date.toLocaleDateString('pt-BR')} às ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 function ClientAction({

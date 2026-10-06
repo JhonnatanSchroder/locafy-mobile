@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { router, type Href } from 'expo-router';
-import { ActivityIndicator, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Switch, Text, View } from 'react-native';
 import { Button, Choice, ErrorText, Field, FormScreen } from '@/components/ui/OperationalForm';
 import { getClient } from '@/services/clients';
 import { ClientPicker } from '@/components/clients/ClientPicker';
 import { getProducts } from '@/services/products';
 import { createContract, getContract, updateContract } from '@/services/contracts';
+import { uploadContractAttachment, type LocalContractPhoto } from '@/services/contractAttachments';
 import { errorMessage } from '@/services/resources';
 import { contractPresentation } from '@/utils/contractStatus';
+import { ContractPhotoPicker } from '@/components/contracts/ContractPhotoPicker';
 import type { Client } from '@/types/client';
 import type { Contract } from '@/types/contract';
 import type { Product } from '@/types/product';
@@ -35,6 +37,9 @@ export function ContractForm({ id, clientId }: { id?: string; clientId?: string 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [review, setReview] = useState<ContractInput | null>(null);
+  const [photos, setPhotos] = useState<LocalContractPhoto[]>([]);
+  const [pendingUploadContractId, setPendingUploadContractId] = useState<number | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     Promise.all([clientId && !id ? getClient(clientId) : Promise.resolve(null), getProducts(), id ? getContract(id) : Promise.resolve(null)]).then(([cs, ps, response]) => {
@@ -65,9 +70,45 @@ export function ContractForm({ id, clientId }: { id?: string; clientId?: string 
     setBusy(true); setError(null);
     try {
       const result = id && contract ? await updateContract(id, { ...review, status: contract.status, ended_at: contract.ended_at }) : await createContract(review);
+      if (!id && photos.length) {
+        const failed = await uploadPhotos(result.id, photos);
+        if (failed.length) {
+          setPhotos(failed);
+          setPendingUploadContractId(result.id);
+          setError(`Contrato criado, mas algumas fotos não foram enviadas. ${photos.length - failed.length} de ${photos.length} fotos enviadas.`);
+          Alert.alert('Contrato criado', `${photos.length - failed.length} de ${photos.length} fotos enviadas.`);
+          return;
+        }
+      }
       router.replace(`/contracts/${result.id}` as Href);
     } catch (e) { setError(errorMessage(e)); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setUploadProgress(null); }
+  }
+  async function retryUpload() {
+    if (!pendingUploadContractId || busy) return;
+    setBusy(true); setError(null);
+    try {
+      const failed = await uploadPhotos(pendingUploadContractId, photos);
+      if (failed.length) {
+        setPhotos(failed);
+        setError(`Contrato criado, mas algumas fotos não foram enviadas. ${photos.length - failed.length} de ${photos.length} fotos enviadas.`);
+        return;
+      }
+      router.replace(`/contracts/${pendingUploadContractId}` as Href);
+    } catch (e) { setError(errorMessage(e)); }
+    finally { setBusy(false); setUploadProgress(null); }
+  }
+  async function uploadPhotos(contractId: number, selectedPhotos: LocalContractPhoto[]) {
+    const failed: LocalContractPhoto[] = [];
+    for (let index = 0; index < selectedPhotos.length; index += 1) {
+      setUploadProgress(`Enviando fotos... ${index + 1} de ${selectedPhotos.length}`);
+      try {
+        await uploadContractAttachment(contractId, selectedPhotos[index]);
+      } catch {
+        failed.push(selectedPhotos[index]);
+      }
+    }
+    return failed;
   }
   if (loading) return <FormScreen title="Contrato"><ActivityIndicator /></FormScreen>;
   if (id && (!contract || contractPresentation(contract).closed)) return <FormScreen title="Contrato"><ErrorText message={error ?? 'Contrato encerrado. A edição não está disponível.'} /></FormScreen>;
@@ -79,8 +120,11 @@ export function ContractForm({ id, clientId }: { id?: string; clientId?: string 
       <Text className="mb-3 text-slate-500">{address || 'Sem endereço'} · {started}</Text>
       {review.items.map(item => <Text key={item.product_id} className="mb-2 text-slate-700 dark:text-slate-200">{products.find(p => p.id === item.product_id)?.name} · {item.billing_period} · R$ {item.unit_price}{item.initial_quantity !== undefined ? ` · Quantidade inicial: ${item.initial_quantity}` : ''}</Text>)}
       {review.initial_freight ? <Text className="text-slate-500">Frete inicial: {review.initial_freight.quantity} × R$ {review.initial_freight.unit_amount}</Text> : null}
+      {!id && photos.length ? <Text className="mt-3 text-slate-500">Fotos selecionadas: {photos.length}</Text> : null}
       <Text className="my-3 text-slate-500">O total será apresentado pelo servidor após salvar.</Text>
+      {uploadProgress ? <Text className="my-2 font-semibold text-blue-600">{uploadProgress}</Text> : null}
       <Button label="Confirmar e salvar" onPress={submit} busy={busy} /><Button label="Voltar à edição" disabled={busy} onPress={() => setReview(null)} />
+      {pendingUploadContractId ? <Button label="Tentar novamente" onPress={retryUpload} busy={busy} /> : null}
     </> : <>
       {selectedClient ? <View className="mb-4 rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"><Text className="text-xs font-semibold uppercase text-slate-500">Cliente selecionado</Text><Text className="mt-2 text-lg font-bold text-slate-950 dark:text-white">{selectedClient.name}</Text><Text className="mt-1 text-slate-500">{selectedClient.phone || 'Telefone não informado'}</Text><Button label="Alterar" onPress={() => setSelectingClient(true)} /></View> : <Button label="Selecionar cliente" onPress={() => setSelectingClient(true)} />}
       <Field label="Endereço da obra" value={address} onChange={setAddress} />
@@ -97,6 +141,7 @@ export function ContractForm({ id, clientId }: { id?: string; clientId?: string 
         {!id ? <Button label="Remover item" onPress={() => setRows(current => current.filter((_, i) => i !== index))} /> : <Text className="text-slate-500">Quantidades físicas são alteradas pela retirada/devolução.</Text>}
       </View>)}
       {!id ? <><Field label="Buscar produto para adicionar" value={searchProduct} onChange={setSearchProduct} />{products.filter(p => p.active && !rows.some(r => r.product_id === p.id) && searchProduct && p.name.toLowerCase().includes(searchProduct.toLowerCase())).slice(0, 20).map(p => <Choice key={p.id} label={p.name} selected={false} onPress={() => { setRows(current => [...current, { product_id: p.id, billing_period: 'DAY', unit_price: p.default_price ?? '', initial_quantity: '0' }]); setSearchProduct(''); }} />)}<Field label="Quantidade de fretes iniciais" numeric value={freightQuantity} onChange={setFreightQuantity} /><Field label="Valor unitário do frete" numeric value={freightPrice} onChange={setFreightPrice} /></> : null}
+      {!id ? <ContractPhotoPicker photos={photos} onChange={setPhotos} disabled={busy} /> : null}
       <Field label="Observações" multiline value={notes} onChange={setNotes} /><Button label="Revisar" onPress={prepare} disabled={!client || !products.length} />
     </>}
     {selectingClient ? <ClientPicker onClose={() => setSelectingClient(false)} onSelect={c => { setSelectedClient(c); setClient(c.id); setSelectingClient(false); }} /> : null}

@@ -15,6 +15,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { formatDate } from '@/utils/formatDate';
 import { getCharges } from '@/services/charges';
 import { errorMessage } from '@/services/resources';
+import { subscribeDashboardUpdates } from '@/services/dashboardUpdates';
 
 export default function DashboardScreen() {
   const { user } = useAuth();
@@ -43,6 +44,10 @@ export default function DashboardScreen() {
     useCallback(() => {
       loadContracts();
     }, [loadContracts]),
+  );
+
+  useFocusEffect(
+    useCallback(() => subscribeDashboardUpdates(() => { void loadContracts(); }), [loadContracts]),
   );
 
   const summary = useMemo(() => {

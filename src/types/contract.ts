@@ -37,6 +37,18 @@ export type ContractFreight = {
     notes?: string | null;
 };
 
+export type ContractAttachment = {
+    id: number;
+    original_name: string;
+    mime_type: string;
+    file_size: number;
+    created_at: string;
+    uploaded_by?: string | { id?: number; name?: string } | null;
+    view_url?: string | null;
+    url?: string | null;
+    can_delete?: boolean;
+};
+
 export type Contract = {
     id: number;
     number: number;
@@ -69,8 +81,12 @@ export type Contract = {
     freight_total?: string | null;
     total_accrued?: string | null;
     total_paid?: string | null;
+    total_discount?: string | null;
     balance?: string | null;
     financial_balance?: string | null;
+    attachments_count?: number;
+    attachments?: ContractAttachment[];
+    can_upload_attachments?: boolean;
     freights?: ContractFreight[];
 
     items: ContractItem[];

@@ -1,5 +1,5 @@
 import { X } from 'lucide-react-native';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -23,19 +23,42 @@ export function PaymentModal({
   onClose: () => void;
   onConfirm: () => Promise<void>;
 }) {
-  const [receivedValue, setReceivedValue] = useState(charge?.balance ?? '');
+  const currentBalance = charge?.financial_balance ?? charge?.balance ?? '';
+  const [receivedValue, setReceivedValue] = useState(currentBalance);
+  const [discountValue, setDiscountValue] = useState('');
   const [paidAt, setPaidAt] = useState(localDateTime());
   const [method, setMethod] = useState<PaymentMethod>('PIX');
   const [observation, setObservation] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submitting = useRef(false);
+  const preview = useMemo(() => {
+    const balance = moneyValue(currentBalance);
+    const received = moneyValue(receivedValue);
+    const discount = moneyValue(discountValue);
+    const settled = received == null || discount == null ? null : received + discount;
+    return {
+      received,
+      discount,
+      settled,
+      balanceAfter: balance == null || settled == null ? null : Math.max(balance - settled, 0),
+    };
+  }, [currentBalance, discountValue, receivedValue]);
+
+  function changeDiscount(value: string) {
+    setDiscountValue(value);
+    const balance = moneyValue(currentBalance);
+    const discount = moneyValue(value);
+    if (balance == null || discount == null || value.trim() === '') return;
+    setReceivedValue(Math.max(balance - discount, 0).toFixed(2));
+  }
+
   async function confirm() {
     if (!charge || submitting.current) return;
     submitting.current = true;
     setBusy(true); setError(null);
     try {
-      await registerPayment(charge.contract_id, { amount: decimalInput(receivedValue), paid_at: dateTimeInput(paidAt), method, notes: observation.trim() || null });
+      await registerPayment(charge.contract_id, { amount: decimalInput(receivedValue), ...(discountValue.trim() ? { discount_amount: decimalInput(discountValue) } : {}), paid_at: dateTimeInput(paidAt), method, notes: observation.trim() || null });
     } catch (e) { setError(errorMessage(e)); setBusy(false); submitting.current = false; return; }
     // Close before refreshing so a failed read cannot cause a second payment submission.
     onClose();
@@ -75,12 +98,22 @@ export function PaymentModal({
                   </View>
                   <View className="items-end">
                     <Text className="text-xs font-semibold uppercase tracking-wide text-slate-400">Restante</Text>
-                    <Text className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{charge.balance == null ? '—' : formatCurrency(Number(charge.balance))}</Text>
+                    <Text className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{currentBalance === '' ? '—' : formatCurrency(Number(currentBalance))}</Text>
                   </View>
                 </View>
               </View>
 
               <Field label="Valor recebido" value={receivedValue} onChangeText={setReceivedValue} keyboardType="decimal-pad" />
+              <Field label="Desconto" value={discountValue} onChangeText={changeDiscount} keyboardType="decimal-pad" placeholder="0,00" />
+
+              <View className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                <PreviewRow label="Recebido" value={preview.received} />
+                <PreviewRow label="Desconto" value={preview.discount} />
+                <PreviewRow label="Total abatido" value={preview.settled} strong />
+                <View className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+                  <PreviewRow label="Saldo após operação" value={preview.balanceAfter} strong />
+                </View>
+              </View>
 
               <Text className="mb-2 mt-4 text-sm font-bold text-slate-700 dark:text-slate-200">Forma de pagamento</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -120,6 +153,17 @@ export function PaymentModal({
       </KeyboardAvoidingView>
     </Modal>
   );
+}
+
+function moneyValue(value: string) {
+  const normalized = value.trim().replace(',', '.');
+  if (!normalized) return 0;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function PreviewRow({ label, value, strong = false }: { label: string; value: number | null; strong?: boolean }) {
+  return <View className="flex-row items-center justify-between gap-3 py-1"><Text className={strong ? 'font-bold text-slate-700 dark:text-slate-200' : 'text-sm text-slate-500 dark:text-slate-400'}>{label}</Text><Text className={strong ? 'font-bold text-slate-950 dark:text-white' : 'font-semibold text-slate-950 dark:text-white'}>{value == null ? '—' : formatCurrency(value)}</Text></View>;
 }
 
 function Field({
