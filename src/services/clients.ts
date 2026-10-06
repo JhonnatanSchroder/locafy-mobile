@@ -1,18 +1,13 @@
 import { api } from '@/services/api';
-import type { Client, ClientResponse, ClientsResponse, CreateClientInput, UpdateClientInput } from '@/types/client';
-
-function normalizeClientsResponse(response: ClientsResponse): Client[] {
-    return Array.isArray(response) ? response : response.data;
-}
+import type { Client, ClientResponse, CreateClientInput, UpdateClientInput } from '@/types/client';
+import type { PaginatedResponse } from '@/types/contract';
 
 function normalizeClientResponse(response: ClientResponse): Client {
     return 'data' in response ? response.data : response;
 }
 
-export async function getClients() {
-    const response = await api<ClientsResponse>('/clients');
-
-    return normalizeClientsResponse(response);
+export async function getClients({ search = '', page = 1, signal }: { search?: string; page?: number; signal?: AbortSignal } = {}) {
+    return api<PaginatedResponse<Client>>(`/clients?search=${encodeURIComponent(search.trim())}&page=${page}`, { signal });
 }
 
 export async function getClient(id: number | string) {

@@ -1,9 +1,8 @@
 import { type Href, router } from 'expo-router';
 import { Banknote, CalendarClock, FilePlus2, FileText, PackagePlus, WalletCards } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AttentionCard } from '@/components/dashboard/AttentionCard';
@@ -12,22 +11,29 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StatCard } from '@/components/ui/StatCard';
 import { getContracts } from '@/services/contracts';
 import type { Contract } from '@/types/contract';
+import { useAuth } from '@/auth/AuthProvider';
+import { formatDate } from '@/utils/formatDate';
+import { getCharges } from '@/services/charges';
+import { errorMessage } from '@/services/resources';
 
 export default function DashboardScreen() {
+  const { user } = useAuth();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [todayCharges, setTodayCharges] = useState<number | null>(null);
+  const [overdueCharges, setOverdueCharges] = useState<number | null>(null);
 
   const loadContracts = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const response = await getContracts();
+      const [response, today, overdue] = await Promise.all([getContracts(), getCharges('today'), getCharges('overdue')]);
       setContracts(response.data);
+      setTodayCharges(today.length); setOverdueCharges(overdue.length);
     } catch (error) {
-      console.error('Erro ao carregar dashboard:', error);
-      setError('Não foi possível carregar o resumo operacional.');
+      setError(errorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -57,18 +63,18 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950">
-      <ScrollView contentContainerClassName="px-5 pb-8 pt-4" showsVerticalScrollIndicator={false}>
+      <ScrollView refreshControl={<RefreshControl refreshing={loading} onRefresh={loadContracts} />} contentContainerClassName="px-5 pb-8 pt-4" showsVerticalScrollIndicator={false}>
         <View className="rounded-[28px] bg-blue-600 p-4">
           <Text className="text-sm font-semibold uppercase tracking-wide text-blue-100">Locafy</Text>
-          <Text className="mt-1 text-3xl font-bold text-white">Boa tarde, Alex</Text>
+          <Text className="mt-1 text-3xl font-bold text-white">Olá, {user?.name}</Text>
           <Text className="mt-1 text-base text-blue-100">Resumo operacional das locações de hoje.</Text>
         </View>
 
         <View className="mt-5 flex-row flex-wrap justify-between gap-y-4">
-          <StatCard title="Contratos ativos" value={String(summary.activeContracts.length)} caption="em locação" icon={FileText} />
-          <StatCard title="Devolvidos" value={String(summary.returnedContracts.length)} caption="aguardam revisão" icon={CalendarClock} />
-          <StatCard title="Itens alugados" value={String(summary.rentedItems)} caption="quantidade atual" icon={PackagePlus} />
-          <StatCard title="Cobranças" value="Pendente" caption="backend futuro" icon={WalletCards} />
+          <StatCard title="Contratos ativos" value={loading || error ? '—' : String(summary.activeContracts.length)} caption="em locação" icon={FileText} />
+          <StatCard title="Cobranças hoje" value={loading || error || todayCharges == null ? '—' : String(todayCharges)} caption="pendentes" icon={CalendarClock} />
+          <StatCard title="Atrasadas" value={loading || error || overdueCharges == null ? '—' : String(overdueCharges)} caption="cobranças pendentes" icon={Banknote} />
+          <StatCard title="Próxima cobrança" value={loading || error ? '—' : String(summary.activeContracts.filter(c => c.next_charge_date).length)} caption="contratos agendados" icon={WalletCards} />
         </View>
 
         {loading ? (
@@ -97,19 +103,21 @@ export default function DashboardScreen() {
         <View className="mt-7">
           <SectionHeader title="Ações rápidas" />
           <View className="flex-row flex-wrap justify-between gap-y-4">
-            <QuickAction label="Novo contrato" icon={FilePlus2} />
-            <QuickAction label="Registrar pagamento" icon={Banknote} />
-            <QuickAction label="Nova retirada" icon={PackagePlus} />
+            <QuickAction label="Novo contrato" icon={FilePlus2} onPress={() => router.push('/contracts/new' as Href)} />
+            <QuickAction label="Novo cliente" icon={Banknote} onPress={() => router.push('/clients/new' as Href)} />
+            <QuickAction label="Contratos" icon={PackagePlus} onPress={() => router.push('/contracts' as Href)} />
             <QuickAction label="Ver cobranças" icon={CalendarClock} onPress={() => router.push('/charges' as Href)} />
           </View>
         </View>
 
         {!loading && !error ? (
         <View className="mt-7">
+          <SectionHeader title="Próximas cobranças dos contratos" />
+          <View className="mb-7 gap-3">{summary.activeContracts.filter(c => c.next_charge_date).sort((a, b) => a.next_charge_date!.localeCompare(b.next_charge_date!)).slice(0, 5).map(c => <Pressable key={c.id} onPress={() => router.push(`/contracts/${c.id}` as Href)} className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"><Text className="font-bold text-slate-950 dark:text-white">{c.client.name} · #{c.number}</Text><Text className="mt-1 text-slate-500">{formatDate(c.next_charge_date!)}</Text></Pressable>)}</View>
           <SectionHeader title="Contratos recentes" action="Ver todos" />
           <View className="gap-3">
             {recentContracts.map((contract) => (
-              <View key={contract.id} className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+              <Pressable onPress={() => router.push(`/contracts/${contract.id}` as Href)} key={contract.id} className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
                 <Text className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">#{contract.number}</Text>
                 <Text className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{contract.client.name}</Text>
                 <Text className="mt-2 text-sm text-slate-500 dark:text-slate-400">
@@ -118,7 +126,7 @@ export default function DashboardScreen() {
                     .map((item) => `${item.current_quantity} ${item.product.name}`)
                     .join(' · ') || 'Nenhum item atualmente fora'}
                 </Text>
-              </View>
+              </Pressable>
             ))}
             {recentContracts.length === 0 ? (
               <View className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">

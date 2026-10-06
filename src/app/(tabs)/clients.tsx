@@ -1,70 +1,26 @@
-import { type Href, router, useFocusEffect } from 'expo-router';
-import { Plus, Search } from 'lucide-react-native';
-import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
+import { type Href, router } from 'expo-router';
+import { Plus, Search, X } from 'lucide-react-native';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getClients } from '@/services/clients';
+import { useClientSearch } from '@/hooks/use-client-search';
 import type { Client } from '@/types/client';
 
 export default function ClientsScreen() {
-    const [clients, setClients] = useState<Client[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [search, setSearch] = useState('');
-
-    const loadClients = useCallback(async (showLoading = true) => {
-        try {
-            if (showLoading) {
-                setLoading(true);
-            }
-
-            setError(null);
-            setClients(await getClients());
-        } catch (error) {
-            console.error('Erro ao carregar clientes:', error);
-            setError('Não foi possível carregar os clientes.');
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, []);
-
-    useFocusEffect(
-        useCallback(() => {
-            loadClients();
-        }, [loadClients]),
-    );
-
-    const filteredClients = useMemo(() => {
-        const term = search.trim().toLowerCase();
-
-        if (!term) {
-            return clients;
-        }
-
-        return clients.filter((client) => {
-            return (
-                client.name.toLowerCase().includes(term) ||
-                (client.phone?.toLowerCase().includes(term) ?? false) ||
-                (client.document?.toLowerCase().includes(term) ?? false)
-            );
-        });
-    }, [clients, search]);
-
-    function handleRefresh() {
-        setRefreshing(true);
-        loadClients(false);
-    }
+    const { clients, loading, loadingMore, error, search, setSearch, refresh, loadMore, retry, total } = useClientSearch();
 
     return (
         <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950">
+            <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <FlatList
-                data={filteredClients}
+                data={loading ? [] : clients}
                 keyExtractor={(item) => String(item.id)}
                 showsVerticalScrollIndicator={false}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+                refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}
+                onEndReached={loadMore}
+                onEndReachedThreshold={0.4}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
                 contentContainerClassName="px-5 pb-28 pt-4"
                 ItemSeparatorComponent={() => <View className="h-3" />}
                 ListHeaderComponent={
@@ -91,6 +47,7 @@ export default function ClientsScreen() {
                                 placeholderTextColor="#94A3B8"
                                 className="flex-1 text-base font-medium text-slate-950 dark:text-white"
                             />
+                            {search ? <Pressable accessibilityLabel="Limpar busca" onPress={() => setSearch('')} hitSlop={10}><X size={18} color="#64748B" /></Pressable> : null}
                         </View>
 
                         {loading ? (
@@ -103,7 +60,7 @@ export default function ClientsScreen() {
                         {!loading && error ? (
                             <View className="my-5 rounded-3xl border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-950/40">
                                 <Text className="text-sm font-medium text-red-600 dark:text-red-300">{error}</Text>
-                                <Pressable onPress={() => loadClients()} className="mt-3 self-start">
+                                <Pressable onPress={retry} className="mt-3 self-start">
                                     <Text className="text-sm font-bold text-blue-600 dark:text-blue-400">Tentar novamente</Text>
                                 </Pressable>
                             </View>
@@ -113,17 +70,18 @@ export default function ClientsScreen() {
                             <View className="mb-3 mt-5 flex-row items-center justify-between">
                                 <Text className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Lista de clientes</Text>
                                 <Text className="text-xs text-slate-400 dark:text-slate-500">
-                                    {filteredClients.length} {filteredClients.length === 1 ? 'resultado' : 'resultados'}
+                                    {total} {total === 1 ? 'resultado' : 'resultados'}
                                 </Text>
                             </View>
                         ) : null}
                     </View>
                 }
                 renderItem={({ item }) =>
-                    !loading && !error ? (
+                    !loading ? (
                         <ClientCard client={item} onPress={() => router.push({ pathname: '/clients/[id]', params: { id: item.id } } as Href)} />
                     ) : null
                 }
+                ListFooterComponent={loadingMore ? <ActivityIndicator className="my-4" /> : null}
                 ListEmptyComponent={
                     !loading && !error ? (
                         <View className="items-center rounded-3xl border border-dashed border-slate-200 bg-white px-6 py-10 dark:border-slate-800 dark:bg-slate-900">
@@ -135,6 +93,7 @@ export default function ClientsScreen() {
                     ) : null
                 }
             />
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 }

@@ -30,9 +30,9 @@ export type ContractItem = {
 
 export type ContractFreight = {
     id: number;
-    type?: string;
-    type_label?: string;
-    amount?: string | null;
+    quantity: number;
+    unit_amount: string;
+    total?: string | null;
     occurred_at?: string | null;
     notes?: string | null;
 };
@@ -43,6 +43,9 @@ export type Contract = {
 
     status: ContractStatus;
     status_label: string;
+    display_status?: string;
+    display_status_label?: string;
+    can_finalize?: boolean;
 
     client: ContractClient;
 
@@ -52,6 +55,7 @@ export type Contract = {
     ended_at: string | null;
 
     next_charge_date: string | null;
+    charge_interval_days?: number | null;
 
     charge_saturdays: boolean;
 
@@ -64,6 +68,9 @@ export type Contract = {
     freight_count?: number;
     freight_total?: string | null;
     total_accrued?: string | null;
+    total_paid?: string | null;
+    balance?: string | null;
+    financial_balance?: string | null;
     freights?: ContractFreight[];
 
     items: ContractItem[];

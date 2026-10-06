@@ -4,6 +4,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, Text, Tex
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/AuthProvider';
+import { errorMessage } from '@/services/resources';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
@@ -25,8 +26,7 @@ export default function LoginScreen() {
 
       await signIn(email.trim(), password);
     } catch (error) {
-      console.error('Erro ao entrar:', error);
-      setError('Não foi possível entrar. Confira seus dados e tente novamente.');
+      setError(errorMessage(error));
     } finally {
       setSubmitting(false);
     }

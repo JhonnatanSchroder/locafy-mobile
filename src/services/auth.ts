@@ -53,7 +53,11 @@ function normalizeLoginResponse(response: LoginApiResponse): LoginResponse {
 }
 
 function normalizeMeResponse(response: MeApiResponse): User {
-    return 'data' in response ? response.data : response;
+    const user = response && 'data' in response ? response.data : response;
+    if (!user || !user.id || typeof user.name !== 'string') {
+        throw new Error('GET /me retornou uma sessão inválida.');
+    }
+    return user;
 }
 
 export async function login(

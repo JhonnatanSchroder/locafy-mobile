@@ -52,8 +52,16 @@ export async function api<T>(
         ? await getToken()
         : null;
 
-    const response = await fetch(`${API_URL}${path}`, {
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    options.signal?.addEventListener('abort', abort, { once: true });
+    if (options.signal?.aborted) controller.abort();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    let response: Response;
+    try {
+    response = await fetch(`${API_URL!.replace(/\/$/, '')}${path}`, {
         ...requestOptions,
+        signal: controller.signal,
         headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
@@ -65,6 +73,13 @@ export async function api<T>(
             ...headers,
         },
     });
+    } catch (error) {
+        if (controller.signal.aborted) throw new Error('A API demorou para responder. Tente novamente.');
+        throw error;
+    } finally {
+        clearTimeout(timeout);
+        options.signal?.removeEventListener('abort', abort);
+    }
 
     const body = await response.json().catch(() => null);
 
@@ -84,5 +99,8 @@ export async function api<T>(
         });
     }
 
+    if (body === null && response.status !== 204) {
+        throw new Error('A API retornou uma resposta inválida. Verifique a conexão com o servidor.');
+    }
     return body as T;
 }

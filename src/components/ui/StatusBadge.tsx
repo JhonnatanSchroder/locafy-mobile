@@ -1,6 +1,7 @@
 import { Text, View } from 'react-native';
 
-import type { ContractStatus } from '@/types/contract';
+import type { Contract, ContractStatus } from '@/types/contract';
+import { contractPresentation } from '@/utils/contractStatus';
 
 const statusStyles: Record<ContractStatus, string> = {
   ACTIVE: 'bg-emerald-100 border-emerald-200 text-emerald-700 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-300',
@@ -9,10 +10,12 @@ const statusStyles: Record<ContractStatus, string> = {
   CANCELLED: 'bg-rose-100 border-rose-200 text-rose-700 dark:bg-rose-950 dark:border-rose-800 dark:text-rose-300',
 };
 
-export function StatusBadge({ status }: { status: ContractStatus }) {
+export function StatusBadge(props: Pick<Contract, 'status' | 'balance' | 'financial_balance' | 'can_finalize' | 'display_status_label'>) {
+  const { status } = props;
+  const presentation = contractPresentation(props);
   return (
-    <View className={`rounded-full border px-3 py-1 ${statusStyles[status]}`}>
-      <Text className={`text-xs font-bold ${statusStyles[status]}`}>{status}</Text>
+    <View className={`rounded-full border px-3 py-1 ${statusStyles[presentation.ready ? 'ACTIVE' : status]}`}>
+      <Text className={`text-xs font-bold ${statusStyles[presentation.ready ? 'ACTIVE' : status]}`}>{presentation.label}</Text>
     </View>
   );
 }

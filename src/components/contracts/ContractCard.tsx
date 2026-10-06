@@ -65,7 +65,7 @@ export function ContractCard({
             </Text>
           </View>
 
-          <StatusBadge status={contract.status} />
+          <StatusBadge status={contract.status} balance={contract.balance} financial_balance={contract.financial_balance} can_finalize={contract.can_finalize} display_status_label={contract.display_status_label} />
         </View>
 
         <Text
@@ -114,9 +114,9 @@ export function ContractCard({
             </Text>
 
             {contract.calculation_complete &&
-            contract.rental_total !== null ? (
+            contract.total_accrued != null ? (
               <MoneyValue
-                value={Number(contract.rental_total)}
+                value={Number(contract.total_accrued)}
               />
             ) : (
               <Text className="mt-1 text-base font-semibold text-slate-500">

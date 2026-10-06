@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import {
   router,
+  type Href,
+  useFocusEffect,
   useLocalSearchParams,
 } from 'expo-router';
 import {
@@ -27,12 +29,16 @@ import {
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { MoneyValue } from '@/components/ui/MoneyValue';
+import { FinancialSummary } from '@/components/ui/FinancialSummary';
+import { subscribeFinancialUpdates } from '@/services/financialUpdates';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { getContract } from '@/services/contracts';
+import { getContract, finalizeContract } from '@/services/contracts';
+import { contractPresentation } from '@/utils/contractStatus';
+import { Button, ErrorText } from '@/components/ui/OperationalForm';
 import type { Contract } from '@/types/contract';
 import { formatDate } from '@/utils/formatDate';
+import { errorMessage } from '@/services/resources';
 
 const actions = [
   { label: 'Retirada', icon: PackageCheck },
@@ -48,11 +54,15 @@ export default function ContractDetailScreen() {
     useState<Contract | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [finalizing, setFinalizing] = useState(false);
+  const [operationError, setOperationError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
   const [error, setError] =
     useState<string | null>(null);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
+    let active = true;
     const loadContract = async () => {
       if (!id) {
         setError('Contrato inválido.');
@@ -66,23 +76,24 @@ export default function ContractDetailScreen() {
 
         const response = await getContract(id);
 
-        setContract(response.data);
+        if (active) setContract(response.data);
       } catch (error) {
         console.error(
           'Erro ao carregar contrato:',
           error,
         );
 
-        setError(
-          'Não foi possível carregar este contrato.',
-        );
+        if (active) setError(errorMessage(error));
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
-    loadContract();
-  }, [id]);
+    void loadContract();
+    return () => { active = false; };
+  }, [id]));
+
+  useEffect(() => subscribeFinancialUpdates(updated => { if (String(updated.id) === id) setContract(updated); }), [id]);
 
   if (loading) {
     return (
@@ -122,12 +133,21 @@ export default function ContractDetailScreen() {
   const currentItems = contract.items.filter(
     (item) => (item.current_quantity ?? 0) > 0,
   );
-
-  const rentalTotal =
-    contract.calculation_complete &&
-    contract.rental_total !== null
-      ? Number(contract.rental_total)
-      : null;
+  const presentation = contractPresentation(contract);
+  async function finish() {
+    if (!contract || finalizing) return;
+    setFinalizing(true); setOperationError(null); setFeedback(null);
+    try {
+      const updated = await finalizeContract(contract.id);
+      setContract(updated);
+      if (updated.status === 'FINALIZED') setFeedback('Contrato finalizado com sucesso.');
+      else setOperationError('O servidor não confirmou a finalização. Atualize o contrato.');
+    } catch (e) { setOperationError(errorMessage(e)); }
+    finally { setFinalizing(false); }
+  }
+  function confirmFinalization() {
+    Alert.alert('Finalizar este contrato?', 'Após a finalização, o contrato será encerrado e não aceitará novas movimentações operacionais.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Finalizar', onPress: () => { void finish(); } }]);
+  }
 
   const handlePhone = async () => {
     const phone = contract.client.phone;
@@ -213,10 +233,9 @@ export default function ContractDetailScreen() {
   };
 
   const handlePendingAction = (label: string) => {
-    Alert.alert(
-      label,
-      `A ação "${label}" ainda não está integrada ao aplicativo.`,
-    );
+    if (label === 'Pagamento') { router.push({ pathname: '/charges', params: { contract_id: id } } as Href); return; }
+    if (label === 'Frete') { router.push(`/contracts/${id}/freight` as Href); return; }
+    router.push({ pathname: '/contracts/[id]/movement', params: { id, type: label === 'Retirada' ? 'WITHDRAWAL' : 'RETURN' } } as Href);
   };
 
   return (
@@ -251,6 +270,8 @@ export default function ContractDetailScreen() {
 
             <StatusBadge
               status={contract.status}
+              balance={contract.balance}
+              financial_balance={contract.financial_balance}
             />
           </View>
 
@@ -320,23 +341,16 @@ export default function ContractDetailScreen() {
         </View>
 
         {/* Resumo */}
+        {!presentation.closed ? <Pressable onPress={() => router.push(`/contracts/${id}/edit` as Href)} className="mt-5 self-start rounded-2xl bg-blue-600 px-4 py-3"><Text className="font-bold text-white">Editar contrato</Text></Pressable> : null}
+        <ErrorText message={operationError} />
+        {feedback ? <Text accessibilityRole="alert" className="mt-4 font-bold text-emerald-600">{feedback}</Text> : null}
+        {presentation.ready ? <Button label="Finalizar contrato" onPress={confirmFinalization} busy={finalizing} /> : null}
+        <View className="mt-3 flex-row gap-3"><Pressable onPress={() => router.push({ pathname: '/charges', params: { contract_id: id } } as Href)} className="rounded-2xl border border-blue-600 px-4 py-3"><Text className="font-bold text-blue-600">Ver cobranças</Text></Pressable></View>
         <View className="mt-7">
           <SectionHeader title="Resumo da locação" />
 
           <View className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-            <View className="flex-row items-center justify-between py-2">
-              <Text className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                Valor acumulado
-              </Text>
-
-              {rentalTotal !== null ? (
-                <MoneyValue value={rentalTotal} />
-              ) : (
-                <Text className="font-semibold text-slate-400">
-                  —
-                </Text>
-              )}
-            </View>
+            <FinancialSummary summary={contract} />
 
             <View className="flex-row items-center justify-between py-2">
               <Text className="text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -432,6 +446,17 @@ export default function ContractDetailScreen() {
           </View>
         </View>
 
+        <View className="mt-7"><SectionHeader title="Histórico de fretes" />
+          <View className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            {contract.freights?.length ? contract.freights.map(freight => <View key={freight.id} className="border-b border-slate-100 py-3 dark:border-slate-800">
+              <Text className="font-bold text-slate-950 dark:text-white">{freight.occurred_at ? formatDate(freight.occurred_at) : 'Data não informada'}</Text>
+              <Text className="mt-1 text-slate-500">{freight.quantity} fretes × {formatCurrency(freight.unit_amount)}</Text>
+              <Text className="mt-1 font-bold text-blue-600">Total {freight.total != null ? formatCurrency(freight.total) : '—'}</Text>
+              {freight.notes ? <Text className="mt-1 text-slate-500">{freight.notes}</Text> : null}
+              {!presentation.closed ? <Pressable onPress={() => router.push({ pathname: '/contracts/[id]/freight', params: { id, freight_id: freight.id } } as Href)} className="mt-2"><Text className="font-bold text-blue-600">Editar frete</Text></Pressable> : null}
+            </View>) : <Text className="text-slate-500">Nenhum frete registrado.</Text>}
+          </View>
+        </View>
         {/* Observações */}
         {contract.notes ? (
           <View className="mt-7">
@@ -447,7 +472,7 @@ export default function ContractDetailScreen() {
       </ScrollView>
 
       {/* Barra inferior */}
-      <View className="absolute bottom-0 left-0 right-0 border-t border-slate-200 bg-white px-5 pb-5 pt-3 dark:border-slate-800 dark:bg-slate-950">
+      {!presentation.closed ? <View className="absolute bottom-0 left-0 right-0 border-t border-slate-200 bg-white px-5 pb-5 pt-3 dark:border-slate-800 dark:bg-slate-950">
         <View className="flex-row justify-between">
           {actions.map(
             ({ label, icon: Icon }) => (
@@ -472,7 +497,7 @@ export default function ContractDetailScreen() {
             ),
           )}
         </View>
-      </View>
+      </View> : null}
     </SafeAreaView>
   );
 }

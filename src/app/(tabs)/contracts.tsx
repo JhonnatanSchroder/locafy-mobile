@@ -9,7 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { Search, X } from 'lucide-react-native';
 
 import { ContractCard } from '@/components/contracts/ContractCard';
@@ -155,6 +155,7 @@ export default function ContractsScreen() {
             </View>
 
             {/* Busca */}
+            <Pressable onPress={() => router.push('/contracts/new' as Href)} className="mb-4 self-start rounded-2xl bg-blue-600 px-4 py-3"><Text className="font-bold text-white">Novo contrato</Text></Pressable>
             <View className="mb-3 flex-row items-center rounded-2xl border border-slate-200 bg-white px-3 dark:border-slate-800 dark:bg-slate-900">
               <Search
                 size={17}

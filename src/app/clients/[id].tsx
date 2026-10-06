@@ -115,7 +115,7 @@ export default function ClientDetailScreen() {
                             <Text className="font-bold text-white">Editar</Text>
                         </View>
                     </Pressable>
-                    <Pressable onPress={() => Alert.alert('Criar contrato', 'Esta ação será integrada quando o fluxo de contratos estiver pronto.')} className="flex-1 active:opacity-80">
+                    <Pressable onPress={() => router.push({ pathname: '/contracts/new', params: { client_id: client.id } } as Href)} className="flex-1 active:opacity-80">
                         <View className="h-12 flex-row items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
                             <FilePlus2 size={17} color="#2563EB" />
                             <Text className="font-bold text-slate-700 dark:text-slate-200">Criar contrato</Text>
@@ -129,7 +129,7 @@ export default function ClientDetailScreen() {
                         <Text className="text-base font-bold text-slate-950 dark:text-white">Contratos do cliente</Text>
                     </View>
                     <Text className="mt-2 text-sm leading-5 text-slate-500 dark:text-slate-400">
-                        Pendente de endpoint dedicado, como GET /api/v1/clients/{'{client}'}/contracts.
+                        Consulte as locações na aba Contratos.
                     </Text>
                 </View>
             </ScrollView>
