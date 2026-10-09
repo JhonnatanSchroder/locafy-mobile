@@ -1,0 +1,44 @@
+warning: in the working copy of 'src/app/(tabs)/contracts.tsx', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/src/app/(tabs)/contracts.tsx b/src/app/(tabs)/contracts.tsx[m
+[1mindex 9957107..44b21ed 100644[m
+[1m--- a/src/app/(tabs)/contracts.tsx[m
+[1m+++ b/src/app/(tabs)/contracts.tsx[m
+[36m@@ -38,7 +38,7 @@[m [mconst filters: {[m
+ export default function ContractsScreen() {[m
+   const router = useRouter();[m
+   const responsive = useResponsive();[m
+[31m-  const columns = responsive.isTablet && responsive.isLandscape ? 2 : 1;[m
+[32m+[m[32m  const numColumns = responsive.isTablet && responsive.isLandscape ? 2 : 1;[m
+ [m
+   const [contracts, setContracts] = useState<Contract[]>([]);[m
+   const [loading, setLoading] = useState(true);[m
+[36m@@ -115,9 +115,9 @@[m [mexport default function ContractsScreen() {[m
+   return ([m
+     <View className="flex-1 bg-slate-50 dark:bg-slate-950">[m
+       <FlatList[m
+[31m-        key={`contracts-${columns}`}[m
+[32m+[m[32m        key={`contracts-${numColumns}`}[m
+         data={filteredContracts}[m
+[31m-        numColumns={columns}[m
+[32m+[m[32m        numColumns={numColumns}[m
+         keyExtractor={(item) => String(item.id)}[m
+         showsVerticalScrollIndicator={false}[m
+         refreshControl={[m
+[36m@@ -132,7 +132,7 @@[m [mexport default function ContractsScreen() {[m
+           width: '100%',[m
+           maxWidth: responsive.isWideTablet ? 1180 : responsive.isTablet ? 860 : undefined,[m
+         }}[m
+[31m-        columnWrapperStyle={columns > 1 ? { gap: 12 } : undefined}[m
+[32m+[m[32m        columnWrapperStyle={numColumns > 1 ? { gap: 12 } : undefined}[m
+         ItemSeparatorComponent={() => ([m
+           <View className="h-3" />[m
+         )}[m
+[36m@@ -281,7 +281,7 @@[m [mexport default function ContractsScreen() {[m
+         }[m
+         renderItem={({ item }) =>[m
+           !loading && !error ? ([m
+[31m-            <View className="flex-1">[m
+[32m+[m[32m            <View className={numColumns > 1 ? 'flex-1' : 'w-full'}>[m
+               <ContractCard[m
+                 contract={item}[m
+                 onPress={() =>[m

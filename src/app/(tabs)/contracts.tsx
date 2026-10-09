@@ -38,7 +38,7 @@ const filters: {
 export default function ContractsScreen() {
   const router = useRouter();
   const responsive = useResponsive();
-  const columns = responsive.isTablet && responsive.isLandscape ? 2 : 1;
+  const numColumns = responsive.isTablet && responsive.isLandscape ? 2 : 1;
 
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,9 +115,9 @@ export default function ContractsScreen() {
   return (
     <View className="flex-1 bg-slate-50 dark:bg-slate-950">
       <FlatList
-        key={`contracts-${columns}`}
+        key={`contracts-${numColumns}`}
         data={filteredContracts}
-        numColumns={columns}
+        numColumns={numColumns}
         keyExtractor={(item) => String(item.id)}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -132,7 +132,7 @@ export default function ContractsScreen() {
           width: '100%',
           maxWidth: responsive.isWideTablet ? 1180 : responsive.isTablet ? 860 : undefined,
         }}
-        columnWrapperStyle={columns > 1 ? { gap: 12 } : undefined}
+        columnWrapperStyle={numColumns > 1 ? { gap: 12 } : undefined}
         ItemSeparatorComponent={() => (
           <View className="h-3" />
         )}
@@ -281,7 +281,7 @@ export default function ContractsScreen() {
         }
         renderItem={({ item }) =>
           !loading && !error ? (
-            <View className="flex-1">
+            <View className={numColumns > 1 ? 'flex-1' : 'w-full'}>
               <ContractCard
                 contract={item}
                 onPress={() =>
