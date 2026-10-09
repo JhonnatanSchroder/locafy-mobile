@@ -45,8 +45,29 @@ export type ContractAttachment = {
     created_at: string;
     uploaded_by?: string | { id?: number; name?: string } | null;
     view_url?: string | null;
+    api_view_url?: string | null;
     url?: string | null;
     can_delete?: boolean;
+};
+
+export type ContractMovementItem = {
+    id: number;
+    contract_item_id: number;
+    quantity: number;
+    product?: ContractItemProduct | null;
+    equipment?: {
+        id: number;
+        name: string;
+    } | null;
+};
+
+export type ContractMovement = {
+    id: number;
+    type: 'WITHDRAWAL' | 'RETURN';
+    type_label?: string;
+    occurred_at: string | null;
+    notes?: string | null;
+    items: ContractMovementItem[];
 };
 
 export type Contract = {
@@ -88,6 +109,7 @@ export type Contract = {
     attachments?: ContractAttachment[];
     can_upload_attachments?: boolean;
     freights?: ContractFreight[];
+    movements?: ContractMovement[];
 
     items: ContractItem[];
 };

@@ -17,7 +17,6 @@ import {
   useLocalSearchParams,
 } from 'expo-router';
 import {
-  ArrowLeft,
   Banknote,
   CalendarDays,
   MapPin,
@@ -28,23 +27,30 @@ import {
   RotateCcw,
   Truck,
   Trash2,
-  type LucideIcon,
   X,
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as FileSystem from 'expo-file-system/legacy';
 
 import { FinancialSummary } from '@/components/ui/FinancialSummary';
 import { subscribeFinancialUpdates } from '@/services/financialUpdates';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { BackButton } from '@/components/ui/BackButton';
+import { ClientAction } from '@/components/ui/ClientAction';
+import { ResponsiveContainer } from '@/components/ui/ResponsiveLayout';
+import { SectionCard } from '@/components/ui/SectionCard';
 import { getContract, finalizeContract } from '@/services/contracts';
 import { contractPresentation } from '@/utils/contractStatus';
 import { Button, ErrorText } from '@/components/ui/OperationalForm';
 import { ContractPhotoPicker } from '@/components/contracts/ContractPhotoPicker';
 import { deleteContractAttachment, uploadContractAttachment, type LocalContractPhoto } from '@/services/contractAttachments';
-import type { Contract, ContractAttachment } from '@/types/contract';
-import { formatDate } from '@/utils/formatDate';
+import { getToken } from '@/services/tokenStorage';
+import type { Contract, ContractAttachment, ContractMovement } from '@/types/contract';
+import { formatDate, formatDateTimeBR } from '@/utils/formatDate';
 import { errorMessage } from '@/services/resources';
+import { useTheme } from '@/hooks/use-theme';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const actions = [
   { label: 'Retirada', icon: PackageCheck },
@@ -53,8 +59,16 @@ const actions = [
   { label: 'Pagamento', icon: Banknote },
 ];
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
+
+if (!API_URL) {
+  throw new Error('EXPO_PUBLIC_API_URL não foi configurada.');
+}
+
 export default function ContractDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const theme = useTheme();
+  const responsive = useResponsive();
 
   const [contract, setContract] =
     useState<Contract | null>(null);
@@ -67,6 +81,8 @@ export default function ContractDetailScreen() {
   const [photosToUpload, setPhotosToUpload] = useState<LocalContractPhoto[]>([]);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoProgress, setPhotoProgress] = useState<string | null>(null);
+  const [imageToken, setImageToken] = useState<string | null>(null);
+  const [imageTokenLoaded, setImageTokenLoaded] = useState(false);
 
   const [error, setError] =
     useState<string | null>(null);
@@ -104,6 +120,26 @@ export default function ContractDetailScreen() {
   }, [id]));
 
   useEffect(() => subscribeFinancialUpdates(updated => { if (String(updated.id) === id) setContract(updated); }), [id]);
+  useEffect(() => {
+    let active = true;
+
+    void getToken()
+      .then((token) => {
+        if (!active) return;
+        setImageToken(token);
+        setImageTokenLoaded(true);
+      })
+      .catch((tokenError) => {
+        if (!active) return;
+        console.error('Erro ao carregar token das imagens:', tokenError);
+        setImageToken(null);
+        setImageTokenLoaded(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -146,6 +182,7 @@ export default function ContractDetailScreen() {
   const presentation = contractPresentation(contract);
   const contractId = contract.id;
   const canUploadAttachments = contract.can_upload_attachments ?? !presentation.closed;
+  const photoTileClassName = responsive.isTablet && responsive.isLandscape ? 'w-[22%] min-w-24' : 'w-[30%] min-w-24';
   async function reloadContract() {
     const response = await getContract(contractId);
     setContract(response.data);
@@ -295,31 +332,23 @@ export default function ContractDetailScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950">
+    <SafeAreaView className="flex-1 bg-slate-50  dark:bg-slate-950">
       <ScrollView
         contentContainerClassName="px-5 pb-28 pt-4"
         showsVerticalScrollIndicator={false}
       >
-        {/* Voltar */}
-        <Pressable
-          onPress={() => router.back()}
-          className="mb-4 h-11 w-11 items-center justify-center rounded-full bg-white dark:bg-slate-900"
-        >
-          <ArrowLeft
-            size={22}
-            color="#2563EB"
-          />
-        </Pressable>
+      <ResponsiveContainer>
+        <BackButton onPress={() => router.back()} />
 
         {/* Cabeçalho */}
-        <View className="rounded-[32px] bg-slate-950 p-5 dark:bg-slate-900">
+        <View className="rounded-[32px] border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <View className="flex-row items-start justify-between gap-3">
             <View className="flex-1">
-              <Text className="text-sm font-semibold uppercase tracking-wide text-blue-300">
+              <Text className="text-sm font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">
                 Contrato #{contract.number}
               </Text>
 
-              <Text className="mt-2 text-3xl font-bold text-white">
+              <Text className="mt-2 text-3xl font-bold text-slate-950 dark:text-white">
                 {contract.client.name}
               </Text>
             </View>
@@ -335,10 +364,10 @@ export default function ContractDetailScreen() {
             <View className="flex-row items-center gap-2">
               <MapPin
                 size={16}
-                color="#CBD5E1"
+                color={theme.iconSecondary}
               />
 
-              <Text className="flex-1 text-sm font-medium text-slate-300">
+              <Text className="flex-1 text-sm font-medium text-slate-600 dark:text-slate-300">
                 {contract.worksite_address ||
                   'Endereço não informado'}
               </Text>
@@ -347,10 +376,10 @@ export default function ContractDetailScreen() {
             <View className="flex-row items-center gap-2">
               <CalendarDays
                 size={16}
-                color="#CBD5E1"
+                color={theme.iconSecondary}
               />
 
-              <Text className="text-sm font-medium text-slate-300">
+              <Text className="text-sm font-medium text-slate-600 dark:text-slate-300">
                 Início em{' '}
                 {formatDate(contract.started_at)}
               </Text>
@@ -360,10 +389,10 @@ export default function ContractDetailScreen() {
               <View className="flex-row items-center gap-2">
                 <CalendarDays
                   size={16}
-                  color="#CBD5E1"
+                  color={theme.iconSecondary}
                 />
 
-                <Text className="text-sm font-medium text-slate-300">
+                <Text className="text-sm font-medium text-slate-600 dark:text-slate-300">
                   Finalizado em{' '}
                   {formatDate(contract.ended_at)}
                 </Text>
@@ -405,7 +434,7 @@ export default function ContractDetailScreen() {
         <View className="mt-7">
           <SectionHeader title="Resumo da locação" />
 
-          <View className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <SectionCard>
             <FinancialSummary summary={contract} />
 
             <View className="flex-row items-center justify-between py-2">
@@ -444,39 +473,117 @@ export default function ContractDetailScreen() {
                 </Text>
               </View>
             )}
-          </View>
+          </SectionCard>
         </View>
 
         <View className="mt-7">
           <SectionHeader title="Fotos" />
-          <View className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <SectionCard>
             {canUploadAttachments ? <ContractPhotoPicker photos={photosToUpload} onChange={updatePhotosToUpload} disabled={photoBusy} helperText="As fotos selecionadas serão enviadas para este contrato." /> : null}
             {photoProgress ? <Text className="mb-3 font-semibold text-blue-600">{photoProgress}</Text> : null}
             {photosToUpload.length && !photoBusy ? <Button label="Tentar novamente" onPress={() => { void uploadSelectedPhotos(); }} /> : null}
-            <View className="flex-row flex-wrap gap-3">
-              {contract.attachments?.length ? contract.attachments.map(attachment => {
-                const url = attachment.view_url ?? attachment.url;
-                if (!url) return null;
-                const canDelete = canUploadAttachments && (attachment.can_delete ?? true);
-                return <View key={attachment.id} className="w-[30%] min-w-24">
-                  <Pressable onPress={() => setSelectedAttachment(attachment)} className="aspect-square overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
-                    <Image source={{ uri: url }} className="h-full w-full" resizeMode="cover" />
-                  </Pressable>
-                  <Text className="mt-2 text-xs font-semibold text-slate-700 dark:text-slate-200" numberOfLines={1}>{attachment.original_name}</Text>
-                  <Text className="mt-1 text-xs text-slate-500">{formatDateTime(attachment.created_at)}</Text>
-                  {uploadedByName(attachment) ? <Text className="mt-1 text-xs text-slate-500" numberOfLines={1}>{uploadedByName(attachment)}</Text> : null}
-                  {canDelete ? <Pressable onPress={() => confirmRemoveAttachment(attachment)} disabled={photoBusy} className="mt-2 flex-row items-center gap-1"><Trash2 size={14} color="#DC2626" /><Text className="text-xs font-bold text-red-600">Remover</Text></Pressable> : null}
-                </View>;
-              }) : <Text className="text-slate-500">Nenhuma foto enviada.</Text>}
-            </View>
-          </View>
+            {!contract.attachments?.length ? (
+              <Text className="text-slate-500">Nenhuma foto enviada.</Text>
+            ) : !imageTokenLoaded ? (
+              <View className="items-center py-5">
+                <ActivityIndicator />
+                <Text className="mt-2 text-sm text-slate-500">
+                  Carregando fotos...
+                </Text>
+              </View>
+            ) : !imageToken ? (
+              <Text className="text-sm font-semibold text-red-600">
+                Não foi possível autenticar o carregamento das fotos.
+              </Text>
+            ) : (
+              <View className="flex-row flex-wrap gap-3">
+                {contract.attachments.map((attachment) => {
+                  const canDelete =
+                    canUploadAttachments &&
+                    (attachment.can_delete ?? true);
+
+                  return (
+                    <View
+                      key={attachment.id}
+                      className={photoTileClassName}
+                    >
+                      <Pressable
+                        onPress={() =>
+                          setSelectedAttachment(attachment)
+                        }
+                        className="aspect-square overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800"
+                      >
+                        <AuthenticatedAttachmentImage
+                          contractId={contractId}
+                          attachment={attachment}
+                          token={imageToken}
+                          className="h-full w-full"
+                          resizeMode="cover"
+                        />
+                      </Pressable>
+
+                      <Text
+                        className="mt-2 text-xs font-semibold text-slate-700 dark:text-slate-200"
+                        numberOfLines={1}
+                      >
+                        {attachment.original_name}
+                      </Text>
+
+                      <Text className="mt-1 text-xs text-slate-500">
+                        {formatDateTimeBR(attachment.created_at)}
+                      </Text>
+
+                      {uploadedByName(attachment) ? (
+                        <Text
+                          className="mt-1 text-xs text-slate-500"
+                          numberOfLines={1}
+                        >
+                          {uploadedByName(attachment)}
+                        </Text>
+                      ) : null}
+
+                      {canDelete ? (
+                        <Pressable
+                          onPress={() =>
+                            confirmRemoveAttachment(attachment)
+                          }
+                          disabled={photoBusy}
+                          className="mt-2 flex-row items-center gap-1"
+                        >
+                          <Trash2 size={14} color={theme.danger} />
+                          <Text className="text-xs font-bold text-red-600">
+                            Remover
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </SectionCard>
+        </View>
+
+        <View className="mt-7">
+          <SectionHeader title="Histórico de movimentações" />
+          <SectionCard>
+            {contract.movements?.length ? (
+              contract.movements.map((movement) => (
+                <MovementHistoryItem key={movement.id} movement={movement} />
+              ))
+            ) : (
+              <Text className="text-slate-500">
+                Nenhuma movimentação registrada.
+              </Text>
+            )}
+          </SectionCard>
         </View>
 
         {/* Itens */}
         <View className="mt-7">
           <SectionHeader title="Itens atuais" />
 
-          <View className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <SectionCard>
             {currentItems.length > 0 ? (
               currentItems.map((item) => (
                 <View
@@ -524,36 +631,38 @@ export default function ContractDetailScreen() {
                 </Text>
               </View>
             )}
-          </View>
+          </SectionCard>
         </View>
 
         <View className="mt-7"><SectionHeader title="Histórico de fretes" />
-          <View className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <SectionCard>
             {contract.freights?.length ? contract.freights.map(freight => <View key={freight.id} className="border-b border-slate-100 py-3 dark:border-slate-800">
-              <Text className="font-bold text-slate-950 dark:text-white">{freight.occurred_at ? formatDate(freight.occurred_at) : 'Data não informada'}</Text>
+              <Text className="font-bold text-slate-950 dark:text-white">{freight.occurred_at ? formatDateTimeBR(freight.occurred_at) : 'Data não informada'}</Text>
               <Text className="mt-1 text-slate-500">{freight.quantity} fretes × {formatCurrency(freight.unit_amount)}</Text>
               <Text className="mt-1 font-bold text-blue-600">Total {freight.total != null ? formatCurrency(freight.total) : '—'}</Text>
               {freight.notes ? <Text className="mt-1 text-slate-500">{freight.notes}</Text> : null}
               {!presentation.closed ? <Pressable onPress={() => router.push({ pathname: '/contracts/[id]/freight', params: { id, freight_id: freight.id } } as Href)} className="mt-2"><Text className="font-bold text-blue-600">Editar frete</Text></Pressable> : null}
             </View>) : <Text className="text-slate-500">Nenhum frete registrado.</Text>}
-          </View>
+          </SectionCard>
         </View>
         {/* Observações */}
         {contract.notes ? (
           <View className="mt-7">
             <SectionHeader title="Observações" />
 
-            <View className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            <SectionCard>
               <Text className="text-sm leading-6 text-slate-600 dark:text-slate-300">
                 {contract.notes}
               </Text>
-            </View>
+            </SectionCard>
           </View>
         ) : null}
+      </ResponsiveContainer>
       </ScrollView>
 
       {/* Barra inferior */}
       {!presentation.closed ? <View className="absolute bottom-0 left-0 right-0 border-t border-slate-200 bg-white px-5 pb-5 pt-3 dark:border-slate-800 dark:bg-slate-950">
+        <ResponsiveContainer>
         <View className="flex-row justify-between">
           {actions.map(
             ({ label, icon: Icon }) => (
@@ -567,7 +676,7 @@ export default function ContractDetailScreen() {
                 <View className="h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-950">
                   <Icon
                     size={19}
-                    color="#2563EB"
+                    color={theme.primary}
                   />
                 </View>
 
@@ -578,67 +687,315 @@ export default function ContractDetailScreen() {
             ),
           )}
         </View>
+        </ResponsiveContainer>
       </View> : null}
-      <AttachmentViewer attachment={selectedAttachment} onClose={() => setSelectedAttachment(null)} onRemove={selectedAttachment && canUploadAttachments && (selectedAttachment.can_delete ?? true) ? () => confirmRemoveAttachment(selectedAttachment) : undefined} />
+      <AttachmentViewer contractId={id} attachment={selectedAttachment} token={imageToken} onClose={() => setSelectedAttachment(null)} onRemove={selectedAttachment && canUploadAttachments && (selectedAttachment.can_delete ?? true) ? () => confirmRemoveAttachment(selectedAttachment) : undefined} />
     </SafeAreaView>
   );
 }
 
-function AttachmentViewer({ attachment, onClose, onRemove }: { attachment: ContractAttachment | null; onClose: () => void; onRemove?: () => void }) {
-  const url = attachment?.view_url ?? attachment?.url;
-  return <Modal visible={!!attachment && !!url} transparent animationType="fade" onRequestClose={onClose}>
-    <View className="flex-1 bg-black/90 px-4 pb-8 pt-12">
-      <View className="mb-4 flex-row items-center justify-between">
-        <Pressable onPress={onClose} className="h-11 w-11 items-center justify-center rounded-full bg-white/10"><X size={22} color="#FFFFFF" /></Pressable>
-        {onRemove ? <Pressable onPress={onRemove} className="h-11 w-11 items-center justify-center rounded-full bg-white/10"><Trash2 size={20} color="#FFFFFF" /></Pressable> : null}
+function AttachmentViewer({
+  contractId,
+  attachment,
+  token,
+  onClose,
+  onRemove,
+}: {
+  contractId: number | string;
+  attachment: ContractAttachment | null;
+  token: string | null;
+  onClose: () => void;
+  onRemove?: () => void;
+}) {
+  return (
+    <Modal
+      visible={!!attachment}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View className="flex-1 bg-black/90 px-4 pb-8 pt-12">
+        <View className="mb-4 flex-row items-center justify-between">
+          <Pressable
+            onPress={onClose}
+            className="h-11 w-11 items-center justify-center rounded-full bg-white/10"
+          >
+            <X size={22} color="#FFFFFF" />
+          </Pressable>
+
+          {onRemove ? (
+            <Pressable
+              onPress={onRemove}
+              className="h-11 w-11 items-center justify-center rounded-full bg-white/10"
+            >
+              <Trash2 size={20} color="#FFFFFF" />
+            </Pressable>
+          ) : null}
+        </View>
+
+        {attachment && token ? (
+          <AuthenticatedAttachmentImage
+            contractId={contractId}
+            attachment={attachment}
+            token={token}
+            className="flex-1 rounded-2xl"
+            resizeMode="contain"
+          />
+        ) : (
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator color="#FFFFFF" />
+            <Text className="mt-3 text-sm text-slate-300">
+              Carregando foto...
+            </Text>
+          </View>
+        )}
+
+        {attachment ? (
+          <View className="mt-4">
+            <Text className="font-bold text-white">
+              {attachment.original_name}
+            </Text>
+
+            <Text className="mt-1 text-slate-300">
+              {formatDateTimeBR(attachment.created_at)}
+              {uploadedByName(attachment)
+                ? ` · ${uploadedByName(attachment)}`
+                : ''}
+            </Text>
+          </View>
+        ) : null}
       </View>
-      {url ? <Image source={{ uri: url }} className="flex-1 rounded-2xl" resizeMode="contain" /> : null}
-      {attachment ? <View className="mt-4"><Text className="font-bold text-white">{attachment.original_name}</Text><Text className="mt-1 text-slate-300">{formatDateTime(attachment.created_at)}{uploadedByName(attachment) ? ` · ${uploadedByName(attachment)}` : ''}</Text></View> : null}
-    </View>
-  </Modal>;
+    </Modal>
+  );
 }
 
+function AuthenticatedAttachmentImage({
+  contractId,
+  attachment,
+  token,
+  className,
+  resizeMode = 'cover',
+}: {
+  contractId: number | string;
+  attachment: ContractAttachment;
+  token: string;
+  className?: string;
+  resizeMode?: 'cover' | 'contain' | 'stretch' | 'repeat' | 'center';
+}) {
+  const [localUri, setLocalUri] = useState<string | null>(null);
+  const [loadingImage, setLoadingImage] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadImage = async () => {
+      setLoadingImage(true);
+      setLoadError(null);
+      setLocalUri(null);
+
+      const cacheDirectory = FileSystem.cacheDirectory;
+
+      if (!cacheDirectory) {
+        if (active) {
+          setLoadError('Cache do aplicativo indisponível.');
+          setLoadingImage(false);
+        }
+        return;
+      }
+
+      const remoteUri = attachmentRemoteUrl(
+        contractId,
+        attachment.id,
+      );
+
+      const extension = attachmentFileExtension(attachment);
+
+      const cachedUri =
+        `${cacheDirectory}locafy-contract-${contractId}` +
+        `-attachment-${attachment.id}.${extension}`;
+
+      try {
+        const cachedFile =
+          await FileSystem.getInfoAsync(cachedUri);
+
+        if (
+          cachedFile.exists &&
+          'size' in cachedFile &&
+          cachedFile.size > 0
+        ) {
+          if (active) {
+            setLocalUri(cachedUri);
+            setLoadingImage(false);
+          }
+          return;
+        }
+
+        const result = await FileSystem.downloadAsync(
+          remoteUri,
+          cachedUri,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: 'image/*',
+            },
+          },
+        );
+
+        if (__DEV__) {
+          console.log(
+            'authenticated attachment download response',
+            {
+              attachmentId: attachment.id,
+              status: result.status,
+              remoteUri,
+              localUri: result.uri,
+            },
+          );
+        }
+
+        if (
+          result.status < 200 ||
+          result.status >= 300
+        ) {
+          await FileSystem.deleteAsync(cachedUri, {
+            idempotent: true,
+          }).catch(() => undefined);
+
+          throw new Error(
+            `HTTP ${result.status} ao carregar a foto.`,
+          );
+        }
+
+        if (active) {
+          setLocalUri(result.uri);
+        }
+      } catch (imageError) {
+        if (__DEV__) {
+          console.log(
+            'authenticated attachment image error',
+            {
+              attachmentId: attachment.id,
+              remoteUri,
+              error:
+                imageError instanceof Error
+                  ? imageError.message
+                  : String(imageError),
+            },
+          );
+        }
+
+        if (active) {
+          setLoadError(
+            imageError instanceof Error
+              ? imageError.message
+              : 'Não foi possível carregar a foto.',
+          );
+        }
+      } finally {
+        if (active) {
+          setLoadingImage(false);
+        }
+      }
+    };
+
+    void loadImage();
+
+    return () => {
+      active = false;
+    };
+  }, [attachment, attachment.id, contractId, token]);
+
+  if (loadingImage) {
+    return (
+      <View
+        className={`items-center justify-center ${className ?? ''}`}
+      >
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  if (loadError || !localUri) {
+    return (
+      <View
+        className={`items-center justify-center bg-slate-100 px-2 dark:bg-slate-800 ${className ?? ''}`}
+      >
+        <Text className="text-center text-xs font-semibold text-slate-500 dark:text-slate-400">
+          Imagem indisponível
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      source={{ uri: localUri }}
+      className={className}
+      resizeMode={resizeMode}
+      onError={(event) => {
+        console.log(
+          'local attachment image render error',
+          {
+            attachmentId: attachment.id,
+            uri: localUri,
+            error: event.nativeEvent.error,
+          },
+        );
+
+        setLoadError(
+          'Não foi possível renderizar a foto.',
+        );
+      }}
+    />
+  );
+}
+
+function attachmentRemoteUrl(
+  contractId: number | string,
+  attachmentId: number | string,
+) {
+  return `${API_URL}/contracts/${contractId}/attachments/${attachmentId}`;
+}
+
+function attachmentFileExtension(
+  attachment: ContractAttachment,
+) {
+  const mimeType =
+    'mime_type' in attachment
+      ? attachment.mime_type
+      : undefined;
+
+  if (mimeType === 'image/png') {
+    return 'png';
+  }
+
+  if (mimeType === 'image/webp') {
+    return 'webp';
+  }
+
+  const match =
+    attachment.original_name?.match(
+      /\.([a-zA-Z0-9]+)$/,
+    );
+
+  const extension =
+    match?.[1]?.toLowerCase();
+
+  if (
+    extension === 'png' ||
+    extension === 'webp' ||
+    extension === 'jpg' ||
+    extension === 'jpeg'
+  ) {
+    return extension;
+  }
+
+  return 'jpg';
+}
 function uploadedByName(attachment: ContractAttachment) {
   if (!attachment.uploaded_by) return null;
   return typeof attachment.uploaded_by === 'string' ? attachment.uploaded_by : attachment.uploaded_by.name ?? null;
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return formatDate(value);
-  return `${date.toLocaleDateString('pt-BR')} às ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
-}
-
-function ClientAction({
-  label,
-  icon: Icon,
-  onPress,
-  disabled = false,
-}: {
-  label: string;
-  icon: LucideIcon;
-  onPress: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      className={`flex-1 items-center rounded-2xl bg-white/10 px-2 py-3 active:opacity-80 ${
-        disabled ? 'opacity-35' : ''
-      }`}
-    >
-      <Icon
-        size={18}
-        color="#BFDBFE"
-      />
-
-      <Text className="mt-1 text-xs font-bold text-blue-100">
-        {label}
-      </Text>
-    </Pressable>
-  );
 }
 
 function getBillingDescription(
@@ -660,6 +1017,43 @@ function getBillingDescription(
     default:
       return price;
   }
+}
+
+function MovementHistoryItem({
+  movement,
+}: {
+  movement: ContractMovement;
+}) {
+  return (
+    <View className="border-b border-slate-100 py-3 last:border-b-0 dark:border-slate-800">
+      <Text className="text-xs font-bold uppercase text-blue-600 dark:text-blue-300">
+        {movement.type_label ?? movementTypeLabel(movement.type)}
+      </Text>
+      <Text className="mt-1 font-bold text-slate-950 dark:text-white">
+        {formatDateTimeBR(movement.occurred_at)}
+      </Text>
+      <View className="mt-3 gap-1">
+        {movement.items.map((item) => (
+          <Text
+            key={item.id}
+            className="text-sm text-slate-700 dark:text-slate-200"
+          >
+            {item.quantity}x {item.product?.name ?? 'Item do contrato'}
+            {item.equipment?.name ? ` · ${item.equipment.name}` : ''}
+          </Text>
+        ))}
+      </View>
+      {movement.notes ? (
+        <Text className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+          Observação: {movement.notes}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+function movementTypeLabel(type: ContractMovement['type']) {
+  return type === 'WITHDRAWAL' ? 'Retirada' : 'Devolução';
 }
 
 function formatCurrency(

@@ -91,13 +91,29 @@ function pickerOptions(multiple: boolean): ImagePicker.ImagePickerOptions {
 }
 
 function toLocalPhoto(asset: ImagePicker.ImagePickerAsset, index: number): LocalContractPhoto {
-  const mimeType = asset.mimeType ?? 'image/jpeg';
-  const extension = mimeType.split('/')[1] || 'jpg';
+  const mimeType = normalizeMimeType(asset.mimeType, asset.fileName ?? asset.uri);
+  const extension = extensionForMimeType(mimeType);
   return {
     id: `${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
     uri: asset.uri,
-    name: asset.fileName ?? `contrato-foto-${Date.now()}-${index}.${extension}`,
+    name: asset.fileName ?? `photo-${Date.now()}-${index}.${extension}`,
     mimeType,
     fileSize: asset.fileSize,
   };
+}
+
+function normalizeMimeType(mimeType: string | undefined, fallbackPath: string) {
+  if (mimeType === 'image/jpg') return 'image/jpeg';
+  if (mimeType === 'image/jpeg' || mimeType === 'image/png' || mimeType === 'image/webp') return mimeType;
+  const clean = fallbackPath.split('?')[0] ?? fallbackPath;
+  const extension = clean.match(/\.([a-zA-Z0-9]+)$/)?.[1]?.toLowerCase();
+  if (extension === 'png') return 'image/png';
+  if (extension === 'webp') return 'image/webp';
+  return 'image/jpeg';
+}
+
+function extensionForMimeType(mimeType: string) {
+  if (mimeType === 'image/png') return 'png';
+  if (mimeType === 'image/webp') return 'webp';
+  return 'jpg';
 }

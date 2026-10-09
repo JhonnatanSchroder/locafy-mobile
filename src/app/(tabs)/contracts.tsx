@@ -13,6 +13,7 @@ import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { Search, X } from 'lucide-react-native';
 
 import { ContractCard } from '@/components/contracts/ContractCard';
+import { useResponsive } from '@/hooks/useResponsive';
 import { getContracts } from '@/services/contracts';
 import type { Contract } from '@/types/contract';
 
@@ -36,6 +37,8 @@ const filters: {
 
 export default function ContractsScreen() {
   const router = useRouter();
+  const responsive = useResponsive();
+  const columns = responsive.isTablet && responsive.isLandscape ? 2 : 1;
 
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,7 +115,9 @@ export default function ContractsScreen() {
   return (
     <View className="flex-1 bg-slate-50 dark:bg-slate-950">
       <FlatList
+        key={`contracts-${columns}`}
         data={filteredContracts}
+        numColumns={columns}
         keyExtractor={(item) => String(item.id)}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -122,6 +127,12 @@ export default function ContractsScreen() {
           />
         }
         contentContainerClassName="px-4 pb-28"
+        contentContainerStyle={{
+          alignSelf: 'center',
+          width: '100%',
+          maxWidth: responsive.isWideTablet ? 1180 : responsive.isTablet ? 860 : undefined,
+        }}
+        columnWrapperStyle={columns > 1 ? { gap: 12 } : undefined}
         ItemSeparatorComponent={() => (
           <View className="h-3" />
         )}
@@ -270,12 +281,14 @@ export default function ContractsScreen() {
         }
         renderItem={({ item }) =>
           !loading && !error ? (
-            <ContractCard
-              contract={item}
-              onPress={() =>
-                router.push(`/contracts/${item.id}`)
-              }
-            />
+            <View className="flex-1">
+              <ContractCard
+                contract={item}
+                onPress={() =>
+                  router.push(`/contracts/${item.id}`)
+                }
+              />
+            </View>
           ) : null
         }
         ListEmptyComponent={

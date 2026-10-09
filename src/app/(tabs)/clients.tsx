@@ -4,16 +4,21 @@ import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable,
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useClientSearch } from '@/hooks/use-client-search';
+import { useResponsive } from '@/hooks/useResponsive';
 import type { Client } from '@/types/client';
 
 export default function ClientsScreen() {
     const { clients, loading, loadingMore, error, search, setSearch, refresh, loadMore, retry, total } = useClientSearch();
+    const responsive = useResponsive();
+    const numColumns = responsive.isTablet && responsive.isLandscape ? 2 : 1;
 
     return (
         <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950">
             <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <FlatList
+                key={`clients-${numColumns}`}
                 data={loading ? [] : clients}
+                numColumns={numColumns}
                 keyExtractor={(item) => String(item.id)}
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}
@@ -22,6 +27,12 @@ export default function ClientsScreen() {
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
                 contentContainerClassName="px-5 pb-28 pt-4"
+                contentContainerStyle={{
+                    alignSelf: 'center',
+                    width: '100%',
+                    maxWidth: responsive.isWideTablet ? 1180 : responsive.isTablet ? 860 : undefined,
+                }}
+                columnWrapperStyle={numColumns > 1 ? { gap: 12 } : undefined}
                 ItemSeparatorComponent={() => <View className="h-3" />}
                 ListHeaderComponent={
                     <View>
@@ -78,7 +89,9 @@ export default function ClientsScreen() {
                 }
                 renderItem={({ item }) =>
                     !loading ? (
-                        <ClientCard client={item} onPress={() => router.push({ pathname: '/clients/[id]', params: { id: item.id } } as Href)} />
+                        <View className={numColumns > 1 ? 'flex-1' : 'w-full'}>
+                            <ClientCard client={item} onPress={() => router.push({ pathname: '/clients/[id]', params: { id: item.id } } as Href)} />
+                        </View>
                     ) : null
                 }
                 ListFooterComponent={loadingMore ? <ActivityIndicator className="my-4" /> : null}

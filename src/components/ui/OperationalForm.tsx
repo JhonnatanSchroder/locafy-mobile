@@ -3,8 +3,10 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ResponsiveContainer } from '@/components/ui/ResponsiveLayout';
+
 export function FormScreen({ title, children }: { title: string; children: ReactNode }) {
-  return <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950"><KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}><ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="px-5 pt-4 pb-12"><Pressable onPress={() => router.back()} className="mb-4"><Text className="font-bold text-blue-600">‹ Voltar</Text></Pressable><Text className="mb-5 text-2xl font-bold text-slate-950 dark:text-white">{title}</Text>{children}</ScrollView></KeyboardAvoidingView></SafeAreaView>;
+  return <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950"><KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}><ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="px-5 pt-4 pb-12"><ResponsiveContainer maxWidth={760}><Pressable onPress={() => router.back()} className="mb-4"><Text className="font-bold text-blue-600">‹ Voltar</Text></Pressable><Text className="mb-5 text-2xl font-bold text-slate-950 dark:text-white">{title}</Text>{children}</ResponsiveContainer></ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
 export function Field({ label, value, onChange, numeric = false, multiline = false }: { label: string; value: string; onChange: (value: string) => void; numeric?: boolean; multiline?: boolean }) {
   return <View className="mb-4"><Text className="mb-2 font-semibold text-slate-600 dark:text-slate-300">{label}</Text><TextInput value={value} onChangeText={onChange} keyboardType={numeric ? 'decimal-pad' : 'default'} multiline={multiline} autoCapitalize="none" className="min-h-12 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-950 dark:border-slate-800 dark:bg-slate-900 dark:text-white" /></View>;

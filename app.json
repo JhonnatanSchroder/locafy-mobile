@@ -1,21 +1,20 @@
 {
   "expo": {
-    "name": "locafy-mobile",
-    "slug": "locafy-mobile",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "name": "Locafy",
+    "slug": "locafy",
+    "version": "1.1.0",
+    "orientation": "default",
+    "icon": "./assets/branding/icon.png",
     "scheme": "locafymobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/branding/icon.png"
     },
     "android": {
+      "versionCode": 2,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#208AEF",
+        "foregroundImage": "./assets/branding/icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.locafy.mobile"
@@ -31,15 +30,15 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "image": "./assets/branding/splash-logo.png",
+          "imageWidth": 180
         }
       ],
       [
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true
+            "usesCleartextTraffic": false
           }
         }
       ],
@@ -51,11 +50,27 @@
           "cameraPermission": "O Locafy usa a câmera para fotografar contratos e itens locados.",
           "microphonePermission": false
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c1489314-2585-48d1-b1e6-4be65a74a650"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c1489314-2585-48d1-b1e6-4be65a74a650",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
     }
   }
 }

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AttentionCard } from '@/components/dashboard/AttentionCard';
 import { QuickAction } from '@/components/dashboard/QuickAction';
+import { ResponsiveContainer, ResponsiveColumns } from '@/components/ui/ResponsiveLayout';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StatCard } from '@/components/ui/StatCard';
 import { getContracts } from '@/services/contracts';
@@ -69,6 +70,7 @@ export default function DashboardScreen() {
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950">
       <ScrollView refreshControl={<RefreshControl refreshing={loading} onRefresh={loadContracts} />} contentContainerClassName="px-5 pb-8 pt-4" showsVerticalScrollIndicator={false}>
+      <ResponsiveContainer>
         <View className="rounded-[28px] bg-blue-600 p-4">
           <Text className="text-sm font-semibold uppercase tracking-wide text-blue-100">Locafy</Text>
           <Text className="mt-1 text-3xl font-bold text-white">Olá, {user?.name}</Text>
@@ -117,30 +119,37 @@ export default function DashboardScreen() {
 
         {!loading && !error ? (
         <View className="mt-7">
-          <SectionHeader title="Próximas cobranças dos contratos" />
-          <View className="mb-7 gap-3">{summary.activeContracts.filter(c => c.next_charge_date).sort((a, b) => a.next_charge_date!.localeCompare(b.next_charge_date!)).slice(0, 5).map(c => <Pressable key={c.id} onPress={() => router.push(`/contracts/${c.id}` as Href)} className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"><Text className="font-bold text-slate-950 dark:text-white">{c.client.name} · #{c.number}</Text><Text className="mt-1 text-slate-500">{formatDate(c.next_charge_date!)}</Text></Pressable>)}</View>
-          <SectionHeader title="Contratos recentes" action="Ver todos" />
-          <View className="gap-3">
-            {recentContracts.map((contract) => (
-              <Pressable onPress={() => router.push(`/contracts/${contract.id}` as Href)} key={contract.id} className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                <Text className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">#{contract.number}</Text>
-                <Text className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{contract.client.name}</Text>
-                <Text className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                  {contract.items
-                    .filter((item) => (item.current_quantity ?? 0) > 0)
-                    .map((item) => `${item.current_quantity} ${item.product.name}`)
-                    .join(' · ') || 'Nenhum item atualmente fora'}
-                </Text>
-              </Pressable>
-            ))}
-            {recentContracts.length === 0 ? (
-              <View className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                <Text className="text-sm font-medium text-slate-500 dark:text-slate-400">Nenhum contrato ativo encontrado.</Text>
+          <ResponsiveColumns
+            left={<>
+              <SectionHeader title="Próximas cobranças dos contratos" />
+              <View className="mb-7 gap-3">{summary.activeContracts.filter(c => c.next_charge_date).sort((a, b) => a.next_charge_date!.localeCompare(b.next_charge_date!)).slice(0, 5).map(c => <Pressable key={c.id} onPress={() => router.push(`/contracts/${c.id}` as Href)} className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"><Text className="font-bold text-slate-950 dark:text-white">{c.client.name} · #{c.number}</Text><Text className="mt-1 text-slate-500">{formatDate(c.next_charge_date!)}</Text></Pressable>)}</View>
+            </>}
+            right={<>
+              <SectionHeader title="Contratos recentes" action="Ver todos" />
+              <View className="gap-3">
+                {recentContracts.map((contract) => (
+                  <Pressable onPress={() => router.push(`/contracts/${contract.id}` as Href)} key={contract.id} className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                    <Text className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">#{contract.number}</Text>
+                    <Text className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{contract.client.name}</Text>
+                    <Text className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                      {contract.items
+                        .filter((item) => (item.current_quantity ?? 0) > 0)
+                        .map((item) => `${item.current_quantity} ${item.product.name}`)
+                        .join(' · ') || 'Nenhum item atualmente fora'}
+                    </Text>
+                  </Pressable>
+                ))}
+                {recentContracts.length === 0 ? (
+                  <View className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                    <Text className="text-sm font-medium text-slate-500 dark:text-slate-400">Nenhum contrato ativo encontrado.</Text>
+                  </View>
+                ) : null}
               </View>
-            ) : null}
-          </View>
+            </>}
+          />
         </View>
         ) : null}
+      </ResponsiveContainer>
       </ScrollView>
     </SafeAreaView>
   );
