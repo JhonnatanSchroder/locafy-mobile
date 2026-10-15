@@ -1,17 +1,21 @@
 import { router, type Href } from 'expo-router';
-import { Boxes, LogOut, Wrench } from 'lucide-react-native';
+import { Boxes, CreditCard, LogOut, Repeat2, Wrench } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/AuthProvider';
+import { useTheme } from '@/hooks/use-theme';
 
-const items = [
+const operationItems = [
+  { label: 'Movimentações', icon: Repeat2, path: '/movements' },
+  { label: 'Pagamentos', icon: CreditCard, path: '/payments' },
   { label: 'Produtos', icon: Boxes, path: '/products' },
   { label: 'Equipamentos', icon: Wrench, path: '/equipments' },
 ];
 
 export default function MorePlaceholder() {
   const { signOut, user } = useAuth();
+  const theme = useTheme();
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 px-5 pt-4 dark:bg-slate-950">
@@ -24,17 +28,18 @@ export default function MorePlaceholder() {
 
         <Pressable onPress={signOut} className="mt-4 active:opacity-80">
           <View className="h-11 flex-row items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 dark:border-red-900/60 dark:bg-red-950/40">
-            <LogOut size={17} color="#DC2626" />
+            <LogOut size={17} color={theme.danger} />
             <Text className="text-sm font-bold text-red-600 dark:text-red-300">Sair</Text>
           </View>
         </Pressable>
       </View>
 
       <View className="mt-6 gap-3">
-        {items.map(({ label, icon: Icon, path }) => (
+        <Text className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Operação</Text>
+        {operationItems.map(({ label, icon: Icon, path }) => (
           <Pressable onPress={() => router.push(path as Href)} key={label} className="flex-row items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
             <View className="h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-950">
-              <Icon size={20} color="#2563EB" />
+              <Icon size={20} color={theme.primary} />
             </View>
             <View className="flex-1">
               <Text className="text-base font-bold text-slate-950 dark:text-white">{label}</Text>

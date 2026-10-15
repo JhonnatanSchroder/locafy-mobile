@@ -5,6 +5,8 @@ export type Charge = {
   id: number;
   contract_id: number;
   client: string;
+  client_id?: number | null;
+  client_contact?: { id: number; name: string; phone: string | null } | null;
   next_charge_date: string | null;
   charge_interval_days: number;
   rental_total: string | null;

@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { router, type Href, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Text, View } from 'react-native';
+import { MessageCircle, Phone, UserRound } from 'lucide-react-native';
 import { Button, ErrorText, FormScreen } from '@/components/ui/OperationalForm';
 import { FinancialSummary } from '@/components/ui/FinancialSummary';
 import { PaymentModal } from '@/components/charges/PaymentModal';
@@ -10,6 +11,8 @@ import { errorMessage } from '@/services/resources';
 import type { Charge } from '@/types/charge';
 import { formatCurrency } from '@/utils/formatCurrency';
 import { formatDate, formatDateTimeBR } from '@/utils/formatDate';
+import { getPhoneUrl, getWhatsAppUrl } from '@/utils/clientContact';
+import { ClientAction } from '@/components/ui/ClientAction';
 
 export default function ChargeDetail() {
   const { id, payment } = useLocalSearchParams<{ id: string; payment?: string }>();
@@ -35,9 +38,14 @@ export default function ChargeDetail() {
     finally { if (version === generation.current) setLoading(false); }
   }
   const canReceive = charge && ['PENDING', 'PARTIAL'].includes(charge.financial_status) && !['FINALIZED', 'CANCELLED'].includes(charge.contract_status);
+  async function openExternal(url: string | null, label: string) {
+    if (!url) { Alert.alert('Telefone inválido', 'O telefone do cliente não possui um formato válido.'); return; }
+    try { await Linking.openURL(url); } catch { Alert.alert(`Não foi possível abrir ${label}`); }
+  }
   return <><FormScreen title="Detalhe da cobrança"><ErrorText message={error} />{error ? <Button label="Atualizar dados" onPress={load} /> : null}{loading ? <ActivityIndicator /> : charge && !error ? <>
-    <Text className="mb-2 text-xl font-bold text-slate-950 dark:text-white">{charge.client}</Text>
+    <Text className="mb-2 text-xl font-bold text-slate-950 dark:text-white">{charge.client_contact?.name ?? charge.client}</Text>
     <Text className="mb-4 text-slate-500">Contrato #{charge.contract_id} · Cobrança {formatDate(charge.next_charge_date)}</Text>
+    <View className="mb-5 rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"><Text className="text-lg font-bold text-slate-950 dark:text-white">Contato do cliente</Text><Text className="mt-1 text-sm text-slate-500 dark:text-slate-400">{charge.client_contact?.phone ?? 'Telefone não cadastrado'}</Text><View className="mt-4 flex-row gap-2">{charge.client_contact?.phone ? <><ClientAction label="WhatsApp" icon={MessageCircle} onPress={() => { void openExternal(getWhatsAppUrl(charge.client_contact?.phone), 'o WhatsApp'); }} /><ClientAction label="Ligar" icon={Phone} onPress={() => { void openExternal(getPhoneUrl(charge.client_contact?.phone), 'o telefone'); }} /></> : null}<ClientAction label="Ver cliente" icon={UserRound} onPress={() => { const clientId = charge.client_contact?.id ?? charge.client_id; if (clientId) router.push(`/clients/${clientId}` as Href); else Alert.alert('Cliente indisponível', 'Não foi possível identificar o cliente desta cobrança.'); }} /></View></View>
     <Text className="mb-4 font-bold text-blue-600">{{ PENDING: 'Pendente', PARTIAL: 'Pendente · pagamento parcial', PAID: 'Quitado', UNAVAILABLE: 'Cálculo indisponível' }[charge.financial_status]}</Text>
     <View className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"><FinancialSummary summary={charge} /></View>
     <Text className="my-3 text-slate-500">Intervalo entre cobranças: {charge.charge_interval_days} dias</Text>

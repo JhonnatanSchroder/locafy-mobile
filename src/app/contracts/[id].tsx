@@ -51,6 +51,7 @@ import { formatDate, formatDateTimeBR } from '@/utils/formatDate';
 import { errorMessage } from '@/services/resources';
 import { useTheme } from '@/hooks/use-theme';
 import { useResponsive } from '@/hooks/useResponsive';
+import { getPhoneUrl, getWhatsAppUrl } from '@/utils/clientContact';
 
 const actions = [
   { label: 'Retirada', icon: PackageCheck },
@@ -254,10 +255,15 @@ export default function ContractDetailScreen() {
       return;
     }
 
-    const cleanPhone = phone.replace(/\D/g, '');
+    const url = getPhoneUrl(phone);
+
+    if (!url) {
+      Alert.alert('Telefone inválido', 'O telefone cadastrado não possui um formato válido.');
+      return;
+    }
 
     try {
-      await Linking.openURL(`tel:${cleanPhone}`);
+      await Linking.openURL(url);
     } catch {
       Alert.alert(
         'Não foi possível abrir o telefone',
@@ -277,18 +283,12 @@ export default function ContractDetailScreen() {
       return;
     }
 
-    let cleanPhone = phone.replace(/\D/g, '');
+    const url = getWhatsAppUrl(phone);
 
-    // Telefone brasileiro sem DDI.
-    if (
-      !cleanPhone.startsWith('55') &&
-      (cleanPhone.length === 10 ||
-        cleanPhone.length === 11)
-    ) {
-      cleanPhone = `55${cleanPhone}`;
+    if (!url) {
+      Alert.alert('Telefone inválido', 'O telefone cadastrado não possui um formato válido.');
+      return;
     }
-
-    const url = `https://wa.me/${cleanPhone}`;
 
     try {
       await Linking.openURL(url);

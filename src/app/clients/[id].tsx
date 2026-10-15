@@ -7,6 +7,7 @@ import { Edit3, FilePlus2, MapPin, MessageCircle, Phone } from 'lucide-react-nat
 
 import { BackButton } from '@/components/ui/BackButton';
 import { ClientAction } from '@/components/ui/ClientAction';
+import { getPhoneUrl, getWhatsAppUrl } from '@/utils/clientContact';
 import { InfoRow } from '@/components/ui/InfoRow';
 import { ResponsiveContainer, ResponsiveColumns } from '@/components/ui/ResponsiveLayout';
 import { SectionCard } from '@/components/ui/SectionCard';
@@ -51,7 +52,12 @@ export default function ClientDetailScreen() {
       return;
     }
 
-    await Linking.openURL(`tel:${client.phone.replace(/\D/g, '')}`);
+    const url = getPhoneUrl(client.phone);
+    if (!url) {
+      Alert.alert('Telefone inválido', 'O telefone cadastrado não possui um formato válido.');
+      return;
+    }
+    await Linking.openURL(url);
   }
 
   async function openWhatsApp() {
@@ -60,9 +66,12 @@ export default function ClientDetailScreen() {
       return;
     }
 
-    let phone = client.phone.replace(/\D/g, '');
-    if (!phone.startsWith('55') && (phone.length === 10 || phone.length === 11)) phone = `55${phone}`;
-    await Linking.openURL(`https://wa.me/${phone}`);
+    const url = getWhatsAppUrl(client.phone);
+    if (!url) {
+      Alert.alert('Telefone inválido', 'O telefone cadastrado não possui um formato válido.');
+      return;
+    }
+    await Linking.openURL(url);
   }
 
   if (loading) {
