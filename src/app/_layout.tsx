@@ -51,6 +51,8 @@ function RootNavigator() {
         <Stack.Screen name="payments/index" options={{ presentation: 'card' }} />
         <Stack.Screen name="payments/new" options={{ presentation: 'card' }} />
         <Stack.Screen name="payments/[id]" options={{ presentation: 'card' }} />
+        <Stack.Screen name="audits/index" options={{ presentation: 'card' }} />
+        <Stack.Screen name="audits/[id]" options={{ presentation: 'card' }} />
         <Stack.Screen name="clients/new" options={{ presentation: 'card' }} />
         <Stack.Screen name="clients/[id]" options={{ presentation: 'card' }} />
         <Stack.Screen name="clients/[id]/edit" options={{ presentation: 'card' }} />

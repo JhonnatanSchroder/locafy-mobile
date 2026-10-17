@@ -1,5 +1,5 @@
 import { router, type Href } from 'expo-router';
-import { Boxes, CreditCard, LogOut, Repeat2, Wrench } from 'lucide-react-native';
+import { Boxes, CreditCard, LogOut, Repeat2, ScrollText, Wrench } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -48,6 +48,7 @@ export default function MorePlaceholder() {
           </Pressable>
         ))}
       </View>
+      {user?.role === 'ADMIN' ? <View className="mt-6 gap-3"><Text className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Administração</Text><Pressable onPress={() => router.push('/audits' as Href)} className="flex-row items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"><View className="h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-950"><ScrollText size={20} color={theme.primary} /></View><View className="flex-1"><Text className="text-base font-bold text-slate-950 dark:text-white">Auditoria</Text><Text className="text-sm text-slate-500 dark:text-slate-400">Histórico operacional</Text></View></Pressable></View> : null}
     </SafeAreaView>
   );
 }

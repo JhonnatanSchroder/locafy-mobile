@@ -70,6 +70,29 @@ export type ContractMovement = {
     items: ContractMovementItem[];
 };
 
+export type ContractRentalBreakdownPeriod = {
+    contract_item_id: number;
+    product: { name: string };
+    started_at: string;
+    ended_at: string;
+    quantity: number;
+    billable_days: number;
+    unit_price: string;
+    subtotal: string;
+    changes?: {
+        movement_id: number;
+        type: 'WITHDRAWAL' | 'RETURN' | string;
+        occurred_at: string;
+        quantity_change: number;
+    }[];
+};
+
+export type ContractRentalBreakdown = {
+    calculated_until: string;
+    periods: ContractRentalBreakdownPeriod[];
+    rental_total: string | null;
+};
+
 export type Contract = {
     id: number;
     number: number;
@@ -98,6 +121,7 @@ export type Contract = {
     calculation_complete: boolean;
 
     rental_total: string | null;
+    rental_breakdown?: ContractRentalBreakdown | null;
     freight_count?: number;
     freight_total?: string | null;
     total_accrued?: string | null;

@@ -2,6 +2,9 @@ export type User = {
     id: number;
     name: string;
     email: string;
+    company_id?: number | null;
+    role?: string;
+    must_change_password?: boolean;
 };
 
 export type LoginResponse = {

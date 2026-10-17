@@ -46,7 +46,7 @@ import { Button, ErrorText } from '@/components/ui/OperationalForm';
 import { ContractPhotoPicker } from '@/components/contracts/ContractPhotoPicker';
 import { deleteContractAttachment, uploadContractAttachment, type LocalContractPhoto } from '@/services/contractAttachments';
 import { getToken } from '@/services/tokenStorage';
-import type { Contract, ContractAttachment, ContractMovement } from '@/types/contract';
+import type { Contract, ContractAttachment, ContractMovement, ContractRentalBreakdownPeriod } from '@/types/contract';
 import { formatDate, formatDateTimeBR } from '@/utils/formatDate';
 import { errorMessage } from '@/services/resources';
 import { useTheme } from '@/hooks/use-theme';
@@ -84,6 +84,7 @@ export default function ContractDetailScreen() {
   const [photoProgress, setPhotoProgress] = useState<string | null>(null);
   const [imageToken, setImageToken] = useState<string | null>(null);
   const [imageTokenLoaded, setImageTokenLoaded] = useState(false);
+  const [breakdownExpanded, setBreakdownExpanded] = useState(false);
 
   const [error, setError] =
     useState<string | null>(null);
@@ -436,6 +437,13 @@ export default function ContractDetailScreen() {
 
           <SectionCard>
             <FinancialSummary summary={contract} />
+
+            <RentalBreakdown
+              periods={contract.rental_breakdown?.periods ?? []}
+              rentalTotal={contract.rental_breakdown?.rental_total ?? contract.rental_total}
+              expanded={breakdownExpanded}
+              onToggle={() => setBreakdownExpanded((current) => !current)}
+            />
 
             <View className="flex-row items-center justify-between py-2">
               <Text className="text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -998,6 +1006,99 @@ function uploadedByName(attachment: ContractAttachment) {
   return typeof attachment.uploaded_by === 'string' ? attachment.uploaded_by : attachment.uploaded_by.name ?? null;
 }
 
+function RentalBreakdown({
+  periods,
+  rentalTotal,
+  expanded,
+  onToggle,
+}: {
+  periods: ContractRentalBreakdownPeriod[];
+  rentalTotal: string | null;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <View className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        onPress={onToggle}
+        className="flex-row items-center justify-between py-2"
+      >
+        <Text className="text-sm font-bold text-slate-950 dark:text-white">
+          Ver cálculo da locação
+        </Text>
+        <Text className="text-lg font-bold text-blue-600 dark:text-blue-400">
+          {expanded ? '⌃' : '⌄'}
+        </Text>
+      </Pressable>
+
+      {expanded ? (
+        periods.length ? (
+          <View className="mt-2 gap-3">
+            {periods.map((period) => (
+              <View
+                key={`${period.contract_item_id}-${period.started_at}-${period.ended_at}`}
+                className="rounded-2xl border border-slate-200 p-3 dark:border-slate-700"
+              >
+                <Text className="font-bold text-slate-950 dark:text-white">
+                  {period.product.name}
+                </Text>
+                <Text className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {formatDate(period.started_at)} até {formatDate(period.ended_at)}
+                </Text>
+
+                <View className="mt-3 flex-row flex-wrap gap-y-3">
+                  <BreakdownValue label="Quantidade" value={String(period.quantity)} />
+                  <BreakdownValue label="Dias cobrados" value={String(period.billable_days)} />
+                  <BreakdownValue label="Valor por peça/dia" value={formatCurrency(period.unit_price)} />
+                  <BreakdownValue label="Subtotal" value={formatCurrency(period.subtotal)} emphasized />
+                </View>
+
+                {period.changes?.length ? (
+                  <Text className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                    Movimentações: {period.changes.map((change) => `${change.quantity_change > 0 ? '+' : ''}${change.quantity_change} · ${change.type === 'WITHDRAWAL' ? 'Retirada' : 'Devolução'}`).join(', ')}
+                  </Text>
+                ) : null}
+              </View>
+            ))}
+
+            <View className="flex-row items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
+              <Text className="font-bold text-slate-950 dark:text-white">Total da locação</Text>
+              <Text className="font-bold text-blue-600 dark:text-blue-400">
+                {formatCurrency(rentalTotal)}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <Text className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+            Demonstrativo não disponível para este contrato.
+          </Text>
+        )
+      ) : null}
+    </View>
+  );
+}
+
+function BreakdownValue({
+  label,
+  value,
+  emphasized = false,
+}: {
+  label: string;
+  value: string;
+  emphasized?: boolean;
+}) {
+  return (
+    <View className="w-1/2 pr-2">
+      <Text className="text-xs text-slate-500 dark:text-slate-400">{label}</Text>
+      <Text className={`mt-1 text-sm ${emphasized ? 'font-bold text-blue-600 dark:text-blue-400' : 'font-semibold text-slate-950 dark:text-white'}`}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
 function getBillingDescription(
   period: string,
   unitPrice: string,
@@ -1057,8 +1158,9 @@ function movementTypeLabel(type: ContractMovement['type']) {
 }
 
 function formatCurrency(
-  value: string | number,
+  value: string | number | null | undefined,
 ) {
+  if (value === null || value === undefined) return '—';
   const number = Number(value);
 
   if (Number.isNaN(number)) {
